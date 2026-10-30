@@ -38,9 +38,14 @@ No Jira item, by Gearoid's choice.
   `permissions:` block.
 - [x] Fork-only commit `chore(poc): ...`: `config.yaml` image `ghcr.io/gotreasa/...`, version
   `3.5.0-poc.1`, POC name; `repository.json` name and URL. **Drop this commit before any upstream PR.**
-- [ ] Push to the fork as `feat-rclone-web-poc` (CI builds all five arches on `feat**`).
-- [ ] Publish prerelease `3.5.0-poc.1` on that branch, so `deploy.yaml` pushes the images.
-- [ ] Gearoid: make the five GHCR packages public (GitHub has no API for this).
+- [x] Push to the fork as `feat-rclone-web-poc`. Gearoid enabled the fork's workflows by hand (GitHub
+  keeps a new fork's workflows off until the owner confirms in the Actions tab).
+- [x] CI on `c2535f1` (manual dispatch): lint plus all five arch builds pass, which closes the
+  "cross-arch builds unverified" gap. https://github.com/gotreasa/hassio-rclone-backup/actions/runs/40987625260
+- [x] Prerelease `3.5.0-poc.1` on `c2535f1`; Deploy pushed all five images.
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/40988170855
+- [x] Images are public with no manual step: an anonymous manifest pull of
+  `ghcr.io/gotreasa/hassio-rclone-backup/<arch>:3.5.0-poc.1` returns HTTP 200 for all five arches.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
