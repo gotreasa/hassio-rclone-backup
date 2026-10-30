@@ -98,6 +98,21 @@ No Jira item, by Gearoid's choice.
   cancelled jobs (attempt 2) passed for all five:
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41058362157. All five images pull
   anonymously.
+- [x] Custom AppArmor profile (Gearoid's go, 2026-10-30): `rclone_backup/apparmor.txt`, and
+  `apparmor: true` on `config.yaml:73` (was `false`, set in `1362bde` for FUSE mounts). Built on the
+  S6 overlay example in HA's app security guide. rclone (Web GUI server and scheduled jobs) runs in
+  a stricter child profile: the mapped folders (`ssl` and `data` read-only), FUSE mount and
+  umount, network, its own config and caches, and no other programs. Expected rating 7/8
+  (5 + 2 ingress + 1 custom profile − 1 SYS_ADMIN); badge green.
+  - **Ships in `complain` mode**, per HA's method: AppArmor logs what it would block instead of
+    blocking. The badge is green in complain mode too, so it does not prove enforcement.
+  - Not testable here: Docker Desktop's kernel has no AppArmor (`docker info` security options:
+    seccomp, cgroupns). `apparmor_parser` 3.1.7 compiles it (`--skip-kernel-load`); a broken copy
+    is rejected, so the check is real.
+  - POC version bumped to `3.5.0-poc.5`.
+- [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
+  for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
+  `complain` in `poc.6`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
