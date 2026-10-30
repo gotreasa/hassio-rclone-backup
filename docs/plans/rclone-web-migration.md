@@ -140,7 +140,22 @@ No Jira item, by Gearoid's choice.
   so `1fd9570` uses the long form with `path:` to keep `/addons` and `/addon_configs`
   (`read_only: false`, as the default is true). `app_config` already mounts at `/config`.
   - Upstream note: the new types need Supervisor 2026.07 or later; older Supervisors would
-    probably reject the config. Not verified.
+    probably reject the config. **Researched 2026-10-30 (Gearoid: "a massive problem"):**
+    - The new types first exist in **Supervisor 2026.07.1** (2026-07-08). `MappingType` read at
+      every release tag from 2025.07.1 to 2026.10.5: none of the three in 2026.07.0 or earlier,
+      all three from 2026.07.1 (`supervisor/apps/const.py`, earlier `supervisor/addons/const.py`).
+    - On 2026.07.0 or earlier, `vol.Coerce(MappingType)` (`apps/validate.py:448`) rejects
+      `local_apps`, and the store logs "Can't read config.yaml" and skips the app
+      (`store/data.py:200-205`): **it disappears from the store, so no install and no update.**
+      What happens to an already-installed copy is not verified.
+    - The Supervisor updates itself by default (`supervisor/validate.py:196`
+      `ATTR_AUTO_UPDATE default=True`; `supervisor.py:271-289`), so exposure is users who
+      turned auto-update off, or whose Supervisor cannot update. Not measured.
+    - The old names have **no removal date**: HA's reference says "Older names are still
+      accepted, with a warning", and `apps/validate.py` only logs for them. They work on every
+      Supervisor, old and new.
+    - A gate does not help: `homeassistant:` sets a minimum Core version, not Supervisor, and an
+      old Supervisor fails while parsing, before any gate applies.
   - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
     warnings, and that `/addons` and `/addon_configs` still show their contents.
   - CI lint failed on the first attempt (run 41083760301: "is not valid under any of the given
