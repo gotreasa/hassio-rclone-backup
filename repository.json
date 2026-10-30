@@ -1,5 +1,5 @@
 {
-  "name": "Home Assistant Add-on: Rclone Backup",
-  "url": "https://github.com/jcwillox/hassio-rclone-backup",
+  "name": "Home Assistant Add-on: Rclone Backup (rclone-web POC)",
+  "url": "https://github.com/gotreasa/hassio-rclone-backup",
   "maintainer": "Joshua Cowie-Willox"
 }

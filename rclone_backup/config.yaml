@@ -1,6 +1,6 @@
 ---
-name: Rclone Backup
-version: 3.4.1
+name: Rclone Backup (rclone-web POC)
+version: 3.5.0-poc.1
 slug: rclone_backup
 description: Automatically sync backup to remote locations using rclone
 arch:
@@ -65,7 +65,7 @@ schema:
   no_unrename: bool?
   no_slugify: bool?
   log_level: list(debug|info|warning|error|fatal)?
-image: ghcr.io/jcwillox/hassio-rclone-backup/{arch}
+image: ghcr.io/gotreasa/hassio-rclone-backup/{arch}
 devices:
   - /dev/fuse
 privileged:
