@@ -28,6 +28,22 @@ an independent reviewer, not the full DES step loop. Research by `nw-researcher`
   open a draft PR only on Gearoid's go.
 - [ ] Optional, Gearoid's call: offer the base-path patch upstream to `rclone/rclone-web`.
 
+## Proof of concept on a fork (Gearoid, 2026-10-30)
+
+A POC only: nothing goes to `jcwillox/hassio-rclone-backup` (no push access there anyway).
+No Jira item, by Gearoid's choice.
+
+- [x] Fork: https://github.com/gotreasa/hassio-rclone-backup (public). Fork setting changed:
+  default workflow token `read` to `write`, because `deploy.yaml` pushes to GHCR and declares no
+  `permissions:` block.
+- [x] Fork-only commit `chore(poc): ...`: `config.yaml` image `ghcr.io/gotreasa/...`, version
+  `3.5.0-poc.1`, POC name; `repository.json` name and URL. **Drop this commit before any upstream PR.**
+- [ ] Push to the fork as `feat-rclone-web-poc` (CI builds all five arches on `feat**`).
+- [ ] Publish prerelease `3.5.0-poc.1` on that branch, so `deploy.yaml` pushes the images.
+- [ ] Gearoid: make the five GHCR packages public (GitHub has no API for this).
+- [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
+  add-on repository in HA, install, open the panel.
+
 ## Findings
 
 - **The stock rclone-web build cannot run under ingress.** Verified in the 1.2.0 `dist.zip`:
