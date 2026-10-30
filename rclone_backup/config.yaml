@@ -1,6 +1,6 @@
 ---
 name: Rclone Backup (rclone-web POC)
-version: 3.5.0-poc.4
+version: 3.5.0-poc.5
 slug: rclone_backup
 description: Automatically sync backup to remote locations using rclone
 arch:
