@@ -88,6 +88,16 @@ No Jira item, by Gearoid's choice.
   reverted build in the full s6 rig: other add-on 403, rclone on loopback only, a real GUI restart
   (new PID) with the add-on still running and no crash warning, browser check 9/9, `docker stop`
   exit 0 in 4 s. POC version bumped to `3.5.0-poc.4`.
+- [x] `3.5.0-poc.4` released on the fork from `4355687`. CI passed (all five arches):
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41058081726. Deploy attempt 1
+  failed at job setup on armhf ("Unable to resolve action `actions/cache@v5.1.0`, unable to find
+  version"), and fail-fast cancelled the rest. Classified as a transient GitHub action-resolution
+  failure: both pinned releases exist (`actions/cache` v5.1.0 published 2026-06-26,
+  `docker/login-action` v4.2.0 published 2026-05-22), the other jobs in the same run resolved
+  them, and the workflow was unchanged since three green Deploy runs. Rerun of the failed and
+  cancelled jobs (attempt 2) passed for all five:
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41058362157. All five images pull
+  anonymously.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
