@@ -24,16 +24,11 @@ map:
   - type: all_app_configs
     read_only: false
     path: /addon_configs
-  # The linter does not allow mixing the short form (share:rw) with this one
-  - type: backup
-    read_only: false
-  - type: homeassistant_config
-    read_only: false
-  - type: media
-    read_only: false
-  - type: share
-    read_only: false
-  - type: ssl
+  - backup:rw
+  - homeassistant_config:rw
+  - media:rw
+  - share:rw
+  - ssl:ro
 options:
   jobs:
     - name: Sync Daily Backups
