@@ -118,6 +118,15 @@ No Jira item, by Gearoid's choice.
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41063182842 and Deploy
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41063489997 pass; all five images
   pull anonymously; the branch serves `apparmor.txt` with `complain` on both profiles.
+- [x] `poc.5` installed on Gearoid's instance. The first attempts (13:32:09, 13:32:40) failed with
+  "An unknown error occurred with app e2fe72d5_rclone_backup": HA offers the update as soon as the
+  branch's `config.yaml` changes, but the aarch64 image was only pushed at 13:33:09. Gearoid
+  confirmed the timing was the cause. **Process: wait for Deploy to finish before updating.**
+- [x] Question answered (2026-10-30): what removing `privileged: SYS_ADMIN` would do. Only
+  `rclone mount` breaks (Web GUI Mounts tab, `mount/mount`, any job with `command: mount`):
+  with SYS_ADMIN a FUSE mount works; without it rclone's mount daemon exits with code 1 and no
+  mount exists. Everything else passes without it in the full s6 rig (403 for other add-ons, real
+  GUI restart, browser 9/9, clean stop). Rating would go from 7 to 8. Not changed; Gearoid's call.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
