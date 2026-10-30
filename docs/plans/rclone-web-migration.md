@@ -156,6 +156,11 @@ No Jira item, by Gearoid's choice.
       Supervisor, old and new.
     - A gate does not help: `homeassistant:` sets a minimum Core version, not Supervisor, and an
       old Supervisor fails while parsing, before any gate applies.
+    - **Decision (Gearoid, 2026-10-30): back to the old names.** Reverted `087c4f0` and `1fd9570`
+      as `a5085e4` and `28be77e`; `map` is identical to `main` again. Kept the linter bump
+      `6b79ef6` (v2.21.1 accepts the old names; both linter schemas validate the config).
+      Cost: three warnings in the Supervisor log. Revisit when HA announces a removal date for
+      the old names. POC version bumped to `3.5.0-poc.8`.
   - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
     warnings, and that `/addons` and `/addon_configs` still show their contents.
   - CI lint failed on the first attempt (run 41083760301: "is not valid under any of the given
