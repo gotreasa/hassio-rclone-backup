@@ -70,4 +70,4 @@ devices:
   - /dev/fuse
 privileged:
   - SYS_ADMIN
-apparmor: false
+apparmor: true
