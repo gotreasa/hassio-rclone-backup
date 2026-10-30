@@ -61,8 +61,8 @@ ENV LANG=C.UTF-8
 # renovate: datasource=github-releases depName=rclone packageName=rclone/rclone
 ENV RCLONE_INSTALLED_VERSION=1.74.3
 
-# Install fuse and nginx (ingress proxy)
-RUN apk add fuse nginx \
+# Install fuse, nginx (ingress proxy) and util-linux unshare (Web GUI isolation)
+RUN apk add fuse nginx util-linux-misc \
     && sed -i 's/#user_allow_other/user_allow_other/' /etc/fuse.conf \
     && ln -s /bin/fusermount /bin/fusermount3
 

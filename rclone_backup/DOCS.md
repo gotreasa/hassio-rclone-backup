@@ -169,6 +169,8 @@ List of flags to give the rclone command, applied globally to all jobs. For use 
 
 The addon now supports ingress and the Rclone Web UI, you can access this by clicking the **Open Web UI** button in the addon info panel. You do not need a username or password, it connects automatically. Then you can click **Remotes** -> **Add New Remote** to create a new remote.
 
+The Web UI can only browse `/homeassistant` and `/backup` on your Home Assistant, plus the folder that holds your rclone config if it is elsewhere. Your jobs are not limited by this, they can still sync any mapped folder such as `/share` or `/media`.
+
 For more information, or to configure rclone without using the WebUI, you can consult the [rclone docs](https://rclone.org/docs/). The rclone config can be found at `/config/rclone.conf` by default.
 
 ---
