@@ -114,6 +114,10 @@ No Jira item, by Gearoid's choice.
     value"). HA's default is `true`, so Gearoid chose to remove the line: same behaviour, the
     profile is still loaded. Lint warnings about armhf, armv7 and i386 (deprecated since HA
     2025.12) are pre-existing and out of scope.
+- [x] `3.5.0-poc.5` released on the fork from `a52f19e`: CI (lint and all five arches)
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41063182842 and Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41063489997 pass; all five images
+  pull anonymously; the branch serves `apparmor.txt` with `complain` on both profiles.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
