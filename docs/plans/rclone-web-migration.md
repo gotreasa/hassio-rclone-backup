@@ -80,7 +80,14 @@ No Jira item, by Gearoid's choice.
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41051713708 and Deploy
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41051961397 pass; all five images
   pull anonymously.
-- [ ] Gearoid: verify on the real instance (see Gearoid's checks in the chat of 2026-10-30).
+- [x] **Confinement reverted** (Gearoid, 2026-10-30): "The changes for poc.3 didn't help and can be
+  reverted." Reasoning agreed: only HA admins reach the GUI after `poc.2`, and they can already
+  read every file through other add-ons, so confining the Explorer guards against trusted users.
+  `git revert` of `1e22bb6` as `9b01107` (no history rewrite). Kept `5ea7874` (the `finish` fix),
+  because it fixes a pre-existing bug: a GUI service restart halted the add-on. Checked on the
+  reverted build in the full s6 rig: other add-on 403, rclone on loopback only, a real GUI restart
+  (new PID) with the add-on still running and no crash warning, browser check 9/9, `docker stop`
+  exit 0 in 4 s. POC version bumped to `3.5.0-poc.4`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
