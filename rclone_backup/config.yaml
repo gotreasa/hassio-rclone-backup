@@ -68,5 +68,3 @@ schema:
 image: ghcr.io/gotreasa/hassio-rclone-backup/{arch}
 devices:
   - /dev/fuse
-privileged:
-  - SYS_ADMIN
