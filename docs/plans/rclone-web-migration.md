@@ -46,6 +46,14 @@ No Jira item, by Gearoid's choice.
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/40988170855
 - [x] Images are public with no manual step: an anonymous manifest pull of
   `ghcr.io/gotreasa/hassio-rclone-backup/<arch>:3.5.0-poc.1` returns HTTP 200 for all five arches.
+- [x] Ingress hardening (Gearoid's go, 2026-10-30): HA's ingress guide says "Only accept connections
+  from 172.30.32.2. Deny everything else." rclone now listens on `127.0.0.1:5572`; nginx on 8099
+  allows only `172.30.32.2` and proxies to it; `--rc-allow-origin` (a CORS header, not access
+  control) dropped. Tested on an HA-shaped network (`172.30.32.0/23`, proxy at `172.30.32.2`, a
+  second container at `172.30.33.10`): browser check 9/9 through the proxy; the second container
+  gets 403 on 8099 and a refused connection on 5572. Negative control: the `3.5.0-poc.1` image
+  answers that container with 200. This run also verifies the final base-path patch. POC version
+  bumped to `3.5.0-poc.2`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
