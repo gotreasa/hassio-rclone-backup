@@ -7,7 +7,7 @@ Rclone Backup can sync specific backups, e.g. backups starting with `AutoBackup*
 
 You can also directly sync your Home Configuration e.g. `/config`, `/share`, `/ssl`, `/media` to a cloud service or to another machine using SFTP. Rclone is smart and will only upload changed files.
 
-The addon also supports monitoring rclone and configuring or exploring remotes through [rclone-webui-react](https://github.com/rclone/rclone-webui-react).
+The addon also supports monitoring rclone and configuring or exploring remotes through [rclone-web](https://github.com/rclone/rclone-web).
 
 ![webui-example](https://github.com/jcwillox/hassio-rclone-backup/raw/main/example.png)
 
