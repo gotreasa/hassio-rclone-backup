@@ -6,30 +6,7 @@
 
 bashio::log.info "Starting Rclone Web GUI..."
 
-# The GUI may only reach /homeassistant and /backup. Its rclone runs in private mount and PID
-# namespaces with the other Home Assistant folders unmounted, and without the Supervisor token.
-# The scheduler runs outside these namespaces, so backup jobs still see every folder.
-for dir in /addons /addon_configs /config /data /media /share /ssl; do
-  case "${RCLONE_CONFIG}" in
-    "${dir}"/*) bashio::log.warning "Web GUI can see ${dir}, because the rclone config is in it" ;;
-    *) HIDDEN_DIRS="${HIDDEN_DIRS:-} ${dir}" ;;
-  esac
-done
-export HIDDEN_DIRS
-
-# Loopback only: nginx on the ingress port admits the Supervisor and proxies here.
-# unshare ignores SIGTERM while it waits, so s6 stops it with SIGHUP (see down-signal) and
-# unshare passes SIGTERM on to rclone.
-exec env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN \
-  unshare --mount --propagation private --pid --fork --kill-child=SIGTERM --mount-proc \
-  /bin/sh -c '
-    for dir in ${HIDDEN_DIRS}; do
-      if mountpoint -q "${dir}"; then umount -l "${dir}"; fi
-    done
-    if [ -d /run/s6/container_environment ]; then
-      mount -t tmpfs -o size=1k,mode=0700 tmpfs /run/s6/container_environment
-    fi
-    exec rclone rcd --rc-no-auth --rc-web-gui-no-open-browser \
-      --rc-addr "127.0.0.1:5572" \
-      --rc-files "/usr/share/rclone-web"
-  '
+# Loopback only: nginx on the ingress port admits the Supervisor and proxies here
+exec rclone rcd --rc-no-auth --rc-web-gui-no-open-browser \
+  --rc-addr "127.0.0.1:5572" \
+  --rc-files "/usr/share/rclone-web"
