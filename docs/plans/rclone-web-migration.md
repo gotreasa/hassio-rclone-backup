@@ -76,6 +76,11 @@ No Jira item, by Gearoid's choice.
     `core/command cat` of environ), a token sweep of the GUI's namespaces, the scheduler still
     seeing every folder, and a real restart; browser check 9/9; `docker stop` 3 s, exit 0.
   - POC version bumped to `3.5.0-poc.3`.
+- [x] `3.5.0-poc.3` released on the fork from `35e5d87`: CI (all five arches)
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41051713708 and Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41051961397 pass; all five images
+  pull anonymously.
+- [ ] Gearoid: verify on the real instance (see Gearoid's checks in the chat of 2026-10-30).
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
