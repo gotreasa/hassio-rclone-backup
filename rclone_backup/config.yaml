@@ -15,15 +15,9 @@ homeassistant_api: true
 ingress: true
 panel_icon: mdi:cloud-sync
 map:
-  # Renamed from addons, addon_config and all_addon_configs; paths kept so existing jobs still work
-  - type: local_apps
-    read_only: false
-    path: /addons
-  - type: app_config
-    read_only: false
-  - type: all_app_configs
-    read_only: false
-    path: /addon_configs
+  - addons:rw
+  - addon_config:rw
+  - all_addon_configs:rw
   - backup:rw
   - homeassistant_config:rw
   - media:rw
