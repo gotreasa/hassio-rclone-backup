@@ -58,6 +58,24 @@ No Jira item, by Gearoid's choice.
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41046546465 and Deploy
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41046817141 pass; all five images
   pull anonymously.
+- [x] Confine the Web GUI (Gearoid's go, 2026-10-30: `/homeassistant` and `/backup` only).
+  rclone has no flag for this (checked `rclone help flags` in 1.74.3), and a UI-only limit is
+  bypassed by `config/create` alias remotes or `core/command`, so it is done at the OS level: the
+  GUI's rclone runs under `unshare` with private mount and PID namespaces, the other HA folders
+  lazily unmounted, a tmpfs over `/run/s6/container_environment`, and `SUPERVISOR_TOKEN` removed
+  from its environment. The scheduler stays in the normal namespace. Needs `util-linux-misc`
+  (busybox `unshare` has no `--kill-child`).
+  - Found while testing: util-linux `unshare --fork` ignores SIGTERM, so s6 could not restart or
+    stop the GUI (an early restart check passed vacuously; replaced by one that requires a new
+    PID). Fixed with `down-signal` SIGHUP and `--kill-child=SIGTERM`.
+  - Found while testing, pre-existing: `rclone/finish` treated exit 143 (SIGTERM, sent by s6 on
+    every stop or restart) as a crash, so a GUI restart halted the whole add-on. Fixed by treating
+    143 as a normal stop.
+  - Rig (full s6 `/init`, fake Supervisor, HA folders mounted with markers, `SYS_ADMIN`): 28/28
+    isolation checks, including bypass attempts (alias remote, `/proc/1/root`, s6 env store,
+    `core/command cat` of environ), a token sweep of the GUI's namespaces, the scheduler still
+    seeing every folder, and a real restart; browser check 9/9; `docker stop` 3 s, exit 0.
+  - POC version bumped to `3.5.0-poc.3`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
