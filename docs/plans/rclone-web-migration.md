@@ -143,6 +143,12 @@ No Jira item, by Gearoid's choice.
     probably reject the config. Not verified.
   - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
     warnings, and that `/addons` and `/addon_configs` still show their contents.
+  - CI lint failed on the first attempt (run 41083760301: "is not valid under any of the given
+    schemas"). Two causes, both checked against the linter's `src/config.schema.json`:
+    `frenck/action-addon-linter@v2.21.0` does not know the new types (v2.21.1 does), and its
+    schema accepts a `map` of only strings or only objects, never a mix. Fixed by bumping the
+    linter to v2.21.1 (`6b79ef6`) and writing every entry in long form (`087c4f0`). Validated
+    locally with `jsonschema`: v2.21.1 VALID, v2.21.0 still invalid.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
