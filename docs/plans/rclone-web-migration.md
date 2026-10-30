@@ -110,6 +110,10 @@ No Jira item, by Gearoid's choice.
     seccomp, cgroupns). `apparmor_parser` 3.1.7 compiles it (`--skip-kernel-load`); a broken copy
     is rejected, so the check is real.
   - POC version bumped to `3.5.0-poc.5`.
+  - CI's add-on linter rejected `apparmor: true` ("'apparmor' should be removed, it uses a default
+    value"). HA's default is `true`, so Gearoid chose to remove the line: same behaviour, the
+    profile is still loaded. Lint warnings about armhf, armv7 and i386 (deprecated since HA
+    2025.12) are pre-existing and out of scope.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
