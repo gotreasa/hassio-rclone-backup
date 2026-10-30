@@ -127,10 +127,22 @@ No Jira item, by Gearoid's choice.
   with SYS_ADMIN a FUSE mount works; without it rclone's mount daemon exits with code 1 and no
   mount exists. Everything else passes without it in the full s6 rig (403 for other add-ons, real
   GUI restart, browser 9/9, clean stop). Rating would go from 7 to 8. Not changed; Gearoid's call.
-- [ ] Experiment `poc.6` (Gearoid's ask, 2026-10-30): `poc.5` minus `privileged: SYS_ADMIN` only
+- [x] Experiment `poc.6` (Gearoid's ask, 2026-10-30): `poc.5` minus `privileged: SYS_ADMIN` only
   (`ce81918`; `/dev/fuse` and the profile unchanged), to check on real HA that only mounts break.
   Released from a staging branch first, and `feat-rclone-web-poc` moved only after Deploy, so HA
-  cannot offer the update before the images exist. Revert `ce81918` to restore mounts.
+  could not offer the update before the images existed. **Result on Gearoid's instance: the mount
+  works on `poc.5` and fails on `poc.6`.** Decision: keep SYS_ADMIN; `ce81918` reverted as
+  `a153263`.
+- [x] Deprecated map types (Supervisor log, 2026-10-30: "uses legacy map type 'addons'; use
+  'local_apps' instead", and the same for `addon_config` and `all_addon_configs`). Deprecated in
+  Supervisor 2026.07 (`supervisor/apps/validate.py:263`). The new types mount elsewhere by default
+  (`local_apps` at `/local_apps`, `all_app_configs` at `/app_configs`; HA configuration reference),
+  so `1fd9570` uses the long form with `path:` to keep `/addons` and `/addon_configs`
+  (`read_only: false`, as the default is true). `app_config` already mounts at `/config`.
+  - Upstream note: the new types need Supervisor 2026.07 or later; older Supervisors would
+    probably reject the config. Not verified.
+  - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
+    warnings, and that `/addons` and `/addon_configs` still show their contents.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
