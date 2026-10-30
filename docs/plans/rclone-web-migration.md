@@ -54,6 +54,10 @@ No Jira item, by Gearoid's choice.
   gets 403 on 8099 and a refused connection on 5572. Negative control: the `3.5.0-poc.1` image
   answers that container with 200. This run also verifies the final base-path patch. POC version
   bumped to `3.5.0-poc.2`.
+- [x] `3.5.0-poc.2` released on the fork from `6d3b843`: CI (all five arches)
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41046546465 and Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41046817141 pass; all five images
+  pull anonymously.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
