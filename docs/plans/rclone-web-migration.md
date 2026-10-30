@@ -127,6 +127,10 @@ No Jira item, by Gearoid's choice.
   with SYS_ADMIN a FUSE mount works; without it rclone's mount daemon exits with code 1 and no
   mount exists. Everything else passes without it in the full s6 rig (403 for other add-ons, real
   GUI restart, browser 9/9, clean stop). Rating would go from 7 to 8. Not changed; Gearoid's call.
+- [ ] Experiment `poc.6` (Gearoid's ask, 2026-10-30): `poc.5` minus `privileged: SYS_ADMIN` only
+  (`ce81918`; `/dev/fuse` and the profile unchanged), to check on real HA that only mounts break.
+  Released from a staging branch first, and `feat-rclone-web-poc` moved only after Deploy, so HA
+  cannot offer the update before the images exist. Revert `ce81918` to restore mounts.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
