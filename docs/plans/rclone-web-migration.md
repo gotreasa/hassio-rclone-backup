@@ -183,6 +183,9 @@ No Jira item, by Gearoid's choice.
     (`supervisor/docker/app.py:582,593`, `docker/homeassistant.py:143,152`): host mounts flow in,
     app mounts never flow out. **An `rclone mount` is only visible inside this app**, wherever it
     is mounted. Corrects my earlier advice to mount into `/share` "because it is shared".
+    **Wrong in practice (Gearoid's test, 2026-11-02):** mounts at `/share/Drime` and `/media/Drime`
+    were both shared on the network through the Samba share app. The source reading did not
+    predict real behaviour; the mechanism was not investigated further.
   - Sharing a folder: the Samba share app, which shares a fixed list only
     (`samba/config.yaml:58`: config, addons/local_apps, addon_configs/app_configs, ssl, share,
     backup, media); `allow_hosts` defaults to private ranges.
@@ -214,8 +217,8 @@ No Jira item, by Gearoid's choice.
     path is now "create and test `rclone.conf` on a computer, then copy it". An empty file plus a
     local-only job is not enough to start. Transfers work (copy and move).
   - Mounts: Gearoid says a mount stays inside the app, and one under `/share` or `/media` can be
-    shared with Samba. That conflicts with the research above (`rslave` propagation keeps an app's
-    mount from flowing out); the docs follow Gearoid's test, and the conflict was raised with him.
+    shared with Samba. That conflicted with the research above; Gearoid then confirmed it on his
+    instance (`/share/Drime` and `/media/Drime` both work through Samba), so the docs stand.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
