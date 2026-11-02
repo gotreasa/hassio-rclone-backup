@@ -219,6 +219,13 @@ No Jira item, by Gearoid's choice.
   - Mounts: Gearoid says a mount stays inside the app, and one under `/share` or `/media` can be
     shared with Samba. That conflicted with the research above; Gearoid then confirmed it on his
     instance (`/share/Drime` and `/media/Drime` both work through Samba), so the docs stand.
+- [x] `3.5.0-poc.10` released (2026-11-02) so HA shows the new docs: bump `21a7aac`, released by
+  Gearoid from a staging branch; Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41462490486 passed; all five images
+  pull anonymously; `feat-rclone-web-poc` then moved to `b21bc4d` (same tree as `21a7aac`).
+  - A relative README screenshot path (`dd6afaa`) was reverted in `b21bc4d`: the info page reads
+    `rclone_backup/README.md`, a symlink, where `./example.png` does not exist. The screenshot
+    links stay on upstream `main`, so the fork shows the old picture until upstream merges.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
