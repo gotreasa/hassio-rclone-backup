@@ -161,6 +161,20 @@ No Jira item, by Gearoid's choice.
       `6b79ef6` (v2.21.1 accepts the old names; both linter schemas validate the config).
       Cost: three warnings in the Supervisor log. Revisit when HA announces a removal date for
       the old names. POC version bumped to `3.5.0-poc.8`.
+- [x] `poc.8` released (CI https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41092738278,
+  Deploy https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41093602654); tracked branch
+  moved only after all five images pulled anonymously.
+- [x] **AppArmor enforce mode** (Gearoid, 2026-11-02: "Move AppArmor out of complain mode, so that I
+  can test it out"). Chose to test by enforcing rather than read a complain-mode log first; the
+  risk is that a missing rule blocks something, fixed forward in a later version. `9f11a3e`
+  removes `complain` and first fills gaps found by reading what the add-on does: `/ r` (Explorer
+  root listing), Go runtime files (`/sys/fs/cgroup`, CPU, huge pages, `/proc` meminfo/cpuinfo/stat),
+  `/etc/fuse.conf` and unix sockets for `fusermount`, file override capabilities for jobs copying
+  files other apps own, zoneinfo, and `signal,` in the outer profile (HA's template only sends).
+  `apparmor_parser` 3.1.7 compiles it; a broken copy is rejected. Not enforceable locally (no
+  AppArmor in Docker Desktop), so Gearoid's instance is the test. POC version `3.5.0-poc.9`.
+- [ ] Gearoid: test `poc.9` in enforce mode; send any `apparmor="DENIED"` lines naming
+  `rclone_backup`.
   - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
     warnings, and that `/addons` and `/addon_configs` still show their contents.
   - CI lint failed on the first attempt (run 41083760301: "is not valid under any of the given
