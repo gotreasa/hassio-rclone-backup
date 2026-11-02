@@ -174,7 +174,24 @@ No Jira item, by Gearoid's choice.
   `apparmor_parser` 3.1.7 compiles it; a broken copy is rejected. Not enforceable locally (no
   AppArmor in Docker Desktop), so Gearoid's instance is the test. POC version `3.5.0-poc.9`.
 - [ ] Gearoid: test `poc.9` in enforce mode; send any `apparmor="DENIED"` lines naming
-  `rclone_backup`.
+  `rclone_backup`. First results (2026-11-02): `/etc`, `/root` and `/mnt` denied, as designed,
+  which shows enforcement works. `job/status: job not found` and `"drime" refers to a local folder`
+  are not AppArmor (no permission error). Mount under enforcement not yet tested.
+- [x] Research (Gearoid, 2026-11-02): mounts, network sharing and USB on HA OS (`nw-researcher`,
+  key claims re-checked against source):
+  - `/share` and `/media` are bound into apps and Core with `rslave` propagation
+    (`supervisor/docker/app.py:582,593`, `docker/homeassistant.py:143,152`): host mounts flow in,
+    app mounts never flow out. **An `rclone mount` is only visible inside this app**, wherever it
+    is mounted. Corrects my earlier advice to mount into `/share` "because it is shared".
+  - Sharing a folder: the Samba share app, which shares a fixed list only
+    (`samba/config.yaml:58`: config, addons/local_apps, addon_configs/app_configs, ssl, share,
+    backup, media); `allow_hosts` defaults to private ranges.
+  - USB storage: Supervisor 2026.10.1 added a "Local disk" mount type (PR #7137, merged
+    2026-10-07; `mounts/disks.py` absent in 2026.10.0, present from 2026.10.1). Mounts into
+    `/media/<name>` or `/share/<name>` on the host, so Samba can share it. Filesystems: btrfs,
+    exfat, ext2/3/4, f2fs (HAOS 18.3+), ntfs (ntfs3), vfat (`mounts/const.py:27-41`). Which HA
+    release shows it in the UI: not confirmed (docs only on rc.home-assistant.io).
+  - Network storage (Settings → System → Storage) is inbound only (NFS/CIFS from another machine).
   - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
     warnings, and that `/addons` and `/addon_configs` still show their contents.
   - CI lint failed on the first attempt (run 41083760301: "is not valid under any of the given
