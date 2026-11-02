@@ -208,11 +208,14 @@ No Jira item, by Gearoid's choice.
   default `google:` job before the first start, because `scheduler/main.go:209-215` stops the app
   when a job names a missing remote) and "Using the Web UI" (per-tab status; Explorer and AppArmor;
   Remotes; Mounts steps and limits; Serves does not work; Settings needs the file). Pedagogy review
-  by `gsmith-pedagogy-reviewer` (Sage).
-  - Open: Gearoid says Samba can share a mount; the 2026-11-02 research says `rslave` propagation
-    keeps an app's mount inside the app. Docs follow Gearoid's wording until he confirms.
-  - Open: Remotes and Transfers were not in Gearoid's report; the table marks Remotes "Partly tested" (listing only) and
-    Transfers "Not tested".
+  by `gsmith-pedagogy-reviewer` (Sage): NEEDS_REVISION, then APPROVED (`2f05f17`).
+  - Gearoid's answers (2026-11-02), now in the docs: Remotes works, but providers that log in
+    through a browser page (Google Drive, iCloud) cannot be added in the Web UI, so the first-run
+    path is now "create and test `rclone.conf` on a computer, then copy it". An empty file plus a
+    local-only job is not enough to start. Transfers work (copy and move).
+  - Mounts: Gearoid says a mount stays inside the app, and one under `/share` or `/media` can be
+    shared with Samba. That conflicts with the research above (`rslave` propagation keeps an app's
+    mount from flowing out); the docs follow Gearoid's test, and the conflict was raised with him.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
