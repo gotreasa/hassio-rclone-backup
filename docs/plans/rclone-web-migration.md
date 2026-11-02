@@ -226,6 +226,16 @@ No Jira item, by Gearoid's choice.
   - A relative README screenshot path (`dd6afaa`) was reverted in `b21bc4d`: the info page reads
     `rclone_backup/README.md`, a symlink, where `./example.png` does not exist. The screenshot
     links stay on upstream `main`, so the fork shows the old picture until upstream merges.
+  - Installing `poc.10` showed "Unknown error, see supervisor logs" several times before it
+    succeeded. Cause not found: nothing in the Supervisor log; the Core log has
+    `Failed to call /store/reload -` with an empty message (other lines in that entry, `stats`
+    on a stopped app and an invalid ingress session, are routine).
+- [x] `3.5.0-poc.11` released (2026-11-02): in-page `#anchor` links in `DOCS.md` replaced by bold
+  section names (`133bca0`), because HA renders docs with `marked` 18 and no heading-id extension
+  (`home-assistant/frontend` `src/resources/markdown-worker.ts`, `package.json`), so headings get
+  no `id`. Bump `6e691a8`; Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41471370545 passed; all five images
+  pull anonymously; then `feat-rclone-web-poc` moved to `6e691a8`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
