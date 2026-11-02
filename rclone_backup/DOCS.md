@@ -7,11 +7,11 @@ The app has two parts:
 - **Jobs** that you write in the app configuration. They copy or sync files on a schedule.
 - **The Web UI**, where you add remotes, browse files and see what rclone is doing.
 
-If this is your first time, do the steps in [Before you start](#before-you-start) first. The app stops
+If this is your first time, do the steps in **Before you start** first. The app stops
 on its first start if you skip them.
 
 A typical configuration looks like this. It uses a remote called `google`, so add that remote before
-you use it (see [Before you start](#before-you-start)). If a job uses a remote that does not exist, the app stops when
+you use it (see **Before you start**). If a job uses a remote that does not exist, the app stops when
 it starts.
 
 ```yaml
@@ -65,12 +65,12 @@ For more ways to set up a remote for a machine without a browser, see
    and save it.
 
 The full path of the file is now `/homeassistant/rclone.conf`. This is the default value of the
-[`config_path`](#configuration) option, so you do not need to change that option.
+`config_path` option, so you do not need to change that option.
 
 *Note: the file contains the passwords and tokens for your accounts. Keep it as safe as a password.*
 
 *Note: if you prefer not to create a file, you can paste the same contents into the
-[`rclone_config`](#configuration) option instead.*
+`rclone_config` option instead.*
 
 ### 3. Set up your jobs and start the app
 
@@ -138,7 +138,7 @@ server.
 You can add a remote in the Web UI only if the provider does not need a browser login. For example,
 S3, SFTP and WebDAV use keys or passwords, so they work. Google Drive and iCloud open a login page in
 a browser, and the Web UI cannot do that. For those, create the remote on your computer and copy the
-config, see [Before you start](#before-you-start).
+config, see **Before you start**.
 
 To add a remote in the Web UI:
 
@@ -183,7 +183,7 @@ options.
 
 **Option:** `jobs`
 
-A list of jobs to schedule, see the [job config](#job-config) section for a list of available options.
+A list of jobs to schedule, see the **Job Config** section for a list of available options.
 
 **Option:** `flags`
 
@@ -223,7 +223,7 @@ Will run all jobs with no schedule defined immediately then exit. Designed for u
 **Option:** `config_path`
 
 The location of the rclone config file. The default is `/homeassistant/rclone.conf`. The file must
-exist before the app starts, see [Before you start](#before-you-start). `/config` is another name for
+exist before the app starts, see **Before you start**. `/config` is another name for
 `/homeassistant`, so older paths such as `/config/rclone.conf` still work.
 
 **Option:** `rclone_config`
@@ -331,8 +331,8 @@ List of flags to give the rclone command, applied globally to all jobs. For use 
 
 ### Configuring Rclone Remotes
 
-To add a remote in the Web UI, see [Remotes](#remotes). For providers that need a browser login, create
-the remote on your computer and copy the config, see [Before you start](#before-you-start). The
+To add a remote in the Web UI, see **Remotes** (under **Using the Web UI**). For providers that need a browser login, create
+the remote on your computer and copy the config, see **Before you start**. The
 [rclone docs](https://rclone.org/docs/) describe each provider.
 
 ---
