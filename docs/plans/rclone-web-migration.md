@@ -203,6 +203,16 @@ No Jira item, by Gearoid's choice.
 - [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
   for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
   `complain` in `poc.6`.
+- [x] Docs for the Web UI limits (Gearoid's test results, 2026-11-02): new screenshot; `DOCS.md`
+  gains "Before you start" (create `/homeassistant/rclone.conf` with a file editor; replace the
+  default `google:` job before the first start, because `scheduler/main.go:209-215` stops the app
+  when a job names a missing remote) and "Using the Web UI" (per-tab status; Explorer and AppArmor;
+  Remotes; Mounts steps and limits; Serves does not work; Settings needs the file). Pedagogy review
+  by `gsmith-pedagogy-reviewer` (Sage).
+  - Open: Gearoid says Samba can share a mount; the 2026-11-02 research says `rslave` propagation
+    keeps an app's mount inside the app. Docs follow Gearoid's wording until he confirms.
+  - Open: Remotes and Transfers were not in Gearoid's report; the table marks Remotes "Partly tested" (listing only) and
+    Transfers "Not tested".
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
@@ -227,7 +237,7 @@ No Jira item, by Gearoid's choice.
 - **Known limit, unchanged in practice:** `rclone rcd --rc-files` has no SPA fallback, so a browser
   reload on a deep link (for example `.../remotes`) returns 404. HA always opens the panel at its
   root, so this does not bite through the HA UI.
-- **Not changed:** `example.png` still shows the old UI. A new screenshot is a separate, optional step.
+- **Done 2026-11-02:** `example.png` replaced with Gearoid's rclone-web Dashboard screenshot.
 - `rclone gui` (rclone 1.74) embeds rclone-web 1.1.8 but listens on two random localhost ports, so
   it does not fit single-port ingress; `--rc-web-gui` still fetches the archived rclone-webui-react.
 
@@ -248,7 +258,7 @@ Each finding was re-checked against source before acting on it.
 4. **Fixed.** Renovate datasource is now `github-releases`, matching the other dependencies.
 5. to 6. No change: index.html caching is the same exposure as before; `client.ts:170` is dead
    upstream code.
-7. `example.png` still shows the old UI (unchanged, optional follow-up).
+7. Done 2026-11-02: `example.png` now shows rclone-web.
 
 Not validated: `renovate.json` against Renovate's schema (running the validator via `npx` was
 blocked by the session's safety classifier). It parses as JSON.

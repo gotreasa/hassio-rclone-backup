@@ -1,6 +1,18 @@
 # Rclone Backup
 
-Backup your Home Assistant configuration or backups to over [40 cloud providers](https://rclone.org/#providers) using [Rclone](https://rclone.org/).
+Backup your Home Assistant configuration or backups to over [70 cloud providers](https://rclone.org/#providers) using [Rclone](https://rclone.org/).
+
+The app has two parts:
+
+- **Jobs** that you write in the app configuration. They copy or sync files on a schedule.
+- **The Web UI**, where you add remotes, browse files and see what rclone is doing.
+
+If this is your first time, do the steps in [Before you start](#before-you-start) first. The app stops
+on its first start if you skip them.
+
+A typical configuration looks like this. It uses a remote called `google`, so add that remote before
+you use it (see [Remotes](#remotes)). If a job uses a remote that does not exist, the app stops when
+it starts.
 
 ```yaml
 jobs:
@@ -17,6 +29,144 @@ jobs:
 dry_run: false
 config_path: /homeassistant/rclone.conf
 ```
+
+## Before you start
+
+Do these steps once, before you start the app for the first time.
+
+### 1. Create the rclone config file
+
+The app keeps your remotes (your cloud accounts) in a file called `rclone.conf`. The file must exist
+before the app starts. The app does not create it for you.
+
+1. If you do not have a way to edit files in Home Assistant, install an app that can. The
+   [File editor](https://my.home-assistant.io/redirect/supervisor_addon/?addon=core_configurator) app
+   is the usual choice.
+2. Open the file editor and go to the top-level folder, where `configuration.yaml` is. This app sees
+   that folder as `/homeassistant`.
+3. Create a new file called `rclone.conf`. Leave it empty and save it. You add remotes to it later,
+   from the Web UI. If the editor does not save an empty file, type the line `# rclone config` and
+   save. rclone ignores lines that start with `#`.
+
+The full path of the file is now `/homeassistant/rclone.conf`. This is the default value of the
+[`config_path`](#configuration) option, so you do not need to change that option.
+
+*Note: if you prefer not to create a file, you can put the rclone config in the
+[`rclone_config`](#configuration) option instead.*
+
+### 2. Change the default job
+
+The default job copies `/backup` to a remote called `google`. You do not have that remote yet. When a
+job uses a remote that does not exist, the app stops when it starts, and you cannot open the Web UI.
+
+Before the first start, go to the **Configuration** tab and replace the jobs with this job. It only
+lists your local backups, so it needs no remote:
+
+```yaml
+jobs:
+  - command: ls
+    name: List Local Backups
+    sources:
+      - /backup
+```
+
+### 3. Start the app and add a remote
+
+1. Start the app, then select **Open Web UI**. You do not need a username or password.
+2. Add a remote. See [Remotes](#remotes).
+3. Go back to the **Configuration** tab and write your real jobs. Use the name of the remote that you
+   added, for example `destination: 'mydrive:Backup/Home Assistant'`.
+4. Set `dry_run` to `false`. The default is `true`. With `true`, rclone only shows in the log what it
+   would do, and it does not copy or delete files. You can keep `true` for the first run, check the
+   log, and then change it to `false`.
+5. Restart the app. The app reads and checks the jobs only when it starts.
+6. If the app stops after the restart, open its **Log** tab. The log names the remote that it did not
+   find. Correct the name in the **Configuration** tab and start the app again.
+
+## Using the Web UI
+
+Select **Open Web UI** on the app's **Info** tab to open the
+[rclone-web](https://github.com/rclone/rclone-web) interface inside Home Assistant.
+
+![webui-example](https://github.com/jcwillox/hassio-rclone-backup/raw/main/example.png)
+
+Not every tab works inside Home Assistant. This table shows what to expect:
+
+| Tab           | Status        | What to know                                                           |
+| ------------- | ------------- | ---------------------------------------------------------------------- |
+| **Dashboard** | Works         | Shows remotes, mounts, transfer counters and the rclone version.       |
+| **Explorer**  | Works, limits | You can only see the folders that the app's security profile allows.  |
+| **Remotes**   | Partly tested | Listing remotes works. Adding a remote in this version is not tested.  |
+| **Mounts**    | Works, limits | Not on your network without a sharing app. A restart removes it.       |
+| **Serves**    | Does not work | Serves did not work in testing. Do not use this tab.                   |
+| **Transfers** | Not tested    | Shows transfers that run from the Web UI.                              |
+| **Settings**  | Works         | Needs `/homeassistant/rclone.conf` to exist before the app starts.     |
+
+### Explorer
+
+Explorer shows the files that rclone can see. The app runs rclone under an
+[AppArmor](https://contributors.home-assistant.io/apps/guides/security/#apparmor) security profile, which
+allows only these folders:
+
+| Folder           | What it contains                         | Access     |
+| ---------------- | ---------------------------------------- | ---------- |
+| `/homeassistant` | Your Home Assistant configuration        | Read/write |
+| `/backup`        | Home Assistant backups                   | Read/write |
+| `/share`         | The shared folder                        | Read/write |
+| `/media`         | The media folder                         | Read/write |
+| `/addons`        | Local apps                               | Read/write |
+| `/addon_configs` | The configuration folders of other apps  | Read/write |
+| `/ssl`           | Certificates                             | Read-only  |
+
+Explorer shows other folders in the top level, for example `/etc` or `/root`, but you cannot open them.
+When you try, Explorer shows an error and AppArmor blocks the access. The block is expected. To see
+what AppArmor blocked, look in the logs for lines that contain `apparmor="DENIED"` and
+`rclone_backup`.
+
+### Remotes
+
+A remote is a connection to a storage provider, for example Google Drive, an S3 bucket or an SFTP
+server.
+
+1. Select **Remotes** → **Add New Remote**.
+2. Give the remote a short name without spaces, for example `mydrive`. You use this name in your jobs.
+3. Select the provider and fill in its settings. The [rclone docs](https://rclone.org/docs/) describe
+   the settings for each provider.
+4. Save the remote. The Web UI writes it to `/homeassistant/rclone.conf`.
+
+If adding a remote in the Web UI fails, add it to `/homeassistant/rclone.conf` with your file editor
+instead. See [Configuring Rclone Remotes](#configuring-rclone-remotes).
+
+### Mounts
+
+A mount makes a remote look like a local folder. Before you start, know these limits:
+
+- **The mount does not appear on your network.** To reach it from another computer, you need a
+  sharing app such as Samba share.
+- **A mount does not survive a restart.** When the app restarts, or Home Assistant restarts, the mount
+  is gone. You must create it again.
+- **The mount folder must already exist.** The Web UI does not create it.
+
+To create a mount:
+
+1. Create an empty folder for the mount. Select **Explorer**, open `/share` (or `/media`), select
+   **New Folder** and give it a name, for example `rclone`.
+2. Select **Mounts** → **New Mount**.
+3. Select the remote. In **Mount Point**, type the full path of the folder from step 1, for example
+   `/share/rclone`.
+4. Create the mount. The remote's files now show in that folder, inside this app.
+
+After each restart of the app or of Home Assistant, do steps 2 to 4 again.
+
+### Serves
+
+Serves did not work in testing. Do not use this tab.
+
+### Settings
+
+Settings shows the path and the contents of the rclone config file, and lets you change global rclone
+options. It works only if `/homeassistant/rclone.conf` existed when the app started. See
+[Create the rclone config file](#1-create-the-rclone-config-file).
 
 ## Configuration
 
@@ -52,7 +202,8 @@ extra_flags:
 
 **Option:** `dry_run`
 
-Trial run with no permanent changes, see what rclone would do without actually doing it.
+Trial run with no permanent changes, see what rclone would do without actually doing it. The default
+is `true`, so set it to `false` when your jobs are ready.
 
 **Option:** `run_once`
 
@@ -60,7 +211,9 @@ Will run all jobs with no schedule defined immediately then exit. Designed for u
 
 **Option:** `config_path`
 
-The location of the rclone config file, must be stored under `/config`.
+The location of the rclone config file. The default is `/homeassistant/rclone.conf`. The file must
+exist before the app starts, see [Before you start](#before-you-start). `/config` is another name for
+`/homeassistant`, so older paths such as `/config/rclone.conf` still work.
 
 **Option:** `rclone_config`
 
@@ -167,9 +320,8 @@ List of flags to give the rclone command, applied globally to all jobs. For use 
 
 ### Configuring Rclone Remotes
 
-The addon now supports ingress and the Rclone Web UI, you can access this by clicking the **Open Web UI** button in the addon info panel. You do not need a username or password, it connects automatically. Then you can click **Remotes** -> **Add New Remote** to create a new remote.
-
-For more information, or to configure rclone without using the WebUI, you can consult the [rclone docs](https://rclone.org/docs/). The rclone config can be found at `/config/rclone.conf` by default.
+To add a remote in the Web UI, see [Remotes](#remotes). To configure rclone without the Web UI, edit
+`/homeassistant/rclone.conf` directly, see the [rclone docs](https://rclone.org/docs/).
 
 ---
 
