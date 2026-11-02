@@ -9,7 +9,7 @@ You can also directly sync your Home Configuration e.g. `/config`, `/share`, `/s
 
 The app also supports monitoring rclone and configuring or exploring remotes through [rclone-web](https://github.com/rclone/rclone-web). Some Web UI tabs have limits inside Home Assistant. Before its first start, the app needs a working `rclone.conf` file, which you create and test on your computer first. Read **Before you start** and **Using the Web UI** in the app's **Documentation** tab first.
 
-![webui-example](./example.png)
+![webui-example](https://github.com/jcwillox/hassio-rclone-backup/raw/main/example.png)
 
 ## Installation
 
