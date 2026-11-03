@@ -236,6 +236,13 @@ No Jira item, by Gearoid's choice.
   no `id`. Bump `6e691a8`; Deploy
   https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41471370545 passed; all five images
   pull anonymously; then `feat-rclone-web-poc` moved to `6e691a8`.
+- [x] Experiment `poc.12` (Gearoid's ask, 2026-11-03): is the base-path patch needed on real HA?
+  `6944b0d` builds stock rclone-web 1.2.0 with no patch and no guard; released from its own branch
+  `experiment-no-patch` (CI run 41563271377 and Deploy run 41564055335 pass; all five images pull
+  anonymously) and installed as a separate app, so the main install was untouched. Reverted on the
+  POC branch as `20dfe43`. **Result on Gearoid's instance: the patch is needed.** This confirms the
+  local negative control on real HA (iframe, auth, HTTPS). Cleanup for Gearoid: uninstall the
+  experiment app and remove its repository; the `experiment-no-patch` branch can then be deleted.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
