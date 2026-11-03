@@ -32,18 +32,11 @@ FROM --platform=$BUILDPLATFORM node:24-alpine AS webui
 ENV RCLONE_WEB_INSTALLED_VERSION=1.2.0
 WORKDIR /app
 
-COPY rclone-web/base-path.patch /tmp/base-path.patch
-
-# Patch rclone-web to run under a sub-path (Home Assistant ingress), then build it,
-# failing if the built page still loads anything from an absolute path
-RUN apk add --no-cache patch \
-    && wget -qO- https://github.com/rclone/rclone-web/archive/refs/tags/"${RCLONE_WEB_INSTALLED_VERSION}".tar.gz \
+# EXPERIMENT: stock rclone-web, no base-path patch and no absolute-path guard
+RUN wget -qO- https://github.com/rclone/rclone-web/archive/refs/tags/"${RCLONE_WEB_INSTALLED_VERSION}".tar.gz \
         | tar -xz --strip-components=1 \
-    && patch -p1 --fuzz=0 < /tmp/base-path.patch \
     && npm ci --no-audit --no-fund \
-    && npm run build \
-    && grep -q 'src="./assets/' dist/index.html \
-    && ! grep -E '(src|href)="/' dist/index.html
+    && npm run build
 
 
 FROM $BUILD_FROM
