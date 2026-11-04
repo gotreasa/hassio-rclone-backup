@@ -1,0 +1,18 @@
+---
+configuration:
+  jobs:
+    name: Jobs
+    description: The rclone jobs to run. See the Documentation tab for every option.
+    fields:
+      command:
+        name: Command
+        description: >-
+          The rclone command to run, for example sync, copy, move, delete or ls.
+      schedule:
+        name: Schedule
+        description: >-
+          When to run the job. Use cron (minute hour day month weekday, for
+          example 10 4 * * * for 04:10 every day), or @hourly, @daily, @weekly,
+          @monthly, @yearly or @every 6h. Seconds are not supported. Leave
+          empty to run once when the app starts. In YAML, quote values that
+          start with @ or *, for example "@hourly".

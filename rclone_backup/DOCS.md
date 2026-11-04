@@ -315,6 +315,22 @@ Optionally you can provide a friendly name for the job, this can be useful to id
 
 Specify when the rclone backup should run using cron syntax. If the `schedule` option is empty or undefined the job will be run when the addon starts.
 
+| Form | Example | Meaning |
+| --- | --- | --- |
+| Five-field cron | `10 4 * * *` | 04:10 every day |
+| `@hourly` | `"@hourly"` | At minute 0 of every hour |
+| `@daily` or `@midnight` | `"@daily"` | 00:00 every day |
+| `@weekly` | `"@weekly"` | 00:00 on Sunday |
+| `@monthly` | `"@monthly"` | 00:00 on the 1st of the month |
+| `@yearly` or `@annually` | `"@yearly"` | 00:00 on 1 January |
+| `@every <duration>` | `"@every 6h"`, `"@every 1h30m"` | A fixed interval, counted from when the app starts, not aligned to the clock |
+| Time zone prefix | `CRON_TZ=Europe/London 10 4 * * *` | Uses that time zone, not the app's local time |
+| Empty or not set | | Runs once when the app starts |
+
+The cron form has five fields (minute, hour, day of month, month, day of week). Seconds are not supported, so a six-field value fails.
+
+*Note: in YAML, put quotes around a value that starts with `@` or `*`, for example `schedule: "@hourly"` or `schedule: "*/15 * * * *"`. Without quotes the YAML is not valid. An invalid schedule stops all jobs, so check the log after you change it.*
+
 **Option:** `command`
 
 The rclone command to run e.g. `sync`, `copy`, `move`.

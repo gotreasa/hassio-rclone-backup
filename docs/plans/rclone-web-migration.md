@@ -283,6 +283,18 @@ No Jira item, by Gearoid's choice.
   - [ ] Optional, Gearoid's call: offer the patch upstream to `rclone/rclone-web`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
+- [x] Job config help (Gearoid's ask, 2026-11-04): a dropdown for `command` and help for `schedule`.
+  Route: working directly, no independent review ran. Size S.
+  - **Decision (Gearoid):** keep `command` as free text. A `list(...)` dropdown would reject any
+    saved job with an unlisted command, and the docs already use `sync`, `delete` and `ls`.
+  - **Change:** new `rclone_backup/translations/en.yaml` with a name and helper text for `jobs`,
+    `command` and `schedule`. HA shows it as text under the field; it has no info icon. The full
+    schedule table is in `DOCS.md` under `schedule`.
+  - **Verified:** the file matches Supervisor's `SCHEMA_APP_TRANSLATIONS` (`apps/validate.py:594`)
+    and the frontend's `configuration.jobs.fields.<field>` lookup; every table row parses with
+    gocron v2.21.2 `CronJob(.., false)`, and six fields and `@startup` fail; PyYAML rejects
+    unquoted `@hourly` and `*/15 * * * *`. **Not verified:** how the helper text looks in a real
+    HA install. Needs a release to show up.
 
 ## Findings
 
