@@ -266,7 +266,20 @@ No Jira item, by Gearoid's choice.
     **Not verified:** a real Box login (the tests use a fake token) and follow-up questions after a
     real token (for example the OneDrive drive choice); no red-before run of the new UI tests (the
     unpatched UI would open a real browser on the Mac), the rc reproduction stands in for it.
-  - [ ] Gearoid: bump the POC version, release, and add a real Box remote on HA.
+  - [x] `3.5.0-poc.13` pushed to `feat-rclone-web-poc` (`b412593`); CI passed on all five arches
+    (https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41828364256); Gearoid released
+    it 2026-11-04 12:27.
+  - **Defect found by Gearoid on poc.13 (2026-11-04):** editing the Box remote and answering yes to
+    "refresh?" failed with `bind: address already in use`; the request continued
+    `*oauth-islocal` with `result: true`. Cause, reproduced on 1.74.3: `config_is_local=false` was
+    sent only on the first call, and rclone reaches the browser question in a later call on this
+    path, so the dialog offered it and `true` started the auth server. The "verified" list above
+    covered only answering no; that gap let it through. Fix: send `config_is_local=false` on every
+    continue call and never show that question. New Playwright test (edit, yes, paste token) is red
+    on the poc.13 patch and green on the fix (`57ed58a`); suite 16/16; patch reproduces the tested tree; built
+    aarch64 image (rclone 1.74.3) passes the same path with no auth-server log line. Needs poc.14.
+  - [ ] Gearoid: restart the app (a stuck auth server holds `127.0.0.1:53682` until then), then
+    release poc.14 and add a real Box remote on HA.
   - [ ] Optional, Gearoid's call: offer the patch upstream to `rclone/rclone-web`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
