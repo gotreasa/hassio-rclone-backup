@@ -243,6 +243,31 @@ No Jira item, by Gearoid's choice.
   POC branch as `20dfe43`. **Result on Gearoid's instance: the patch is needed.** This confirms the
   local negative control on real HA (iframe, auth, HTTPS). Cleanup for Gearoid: uninstall the
   experiment app and remove its repository; the `experiment-no-patch` branch can then be deleted.
+- [x] Browser-login remotes in the Web UI (Gearoid's report and choice, 2026-11-04: Box could not be
+  added). Route: working directly, no independent review ran. Size M.
+  - **Cause, reproduced on `rclone/rclone:1.74.3` headless:** rclone-web calls `config/create` with
+    no `opt`, so rclone auto-answers `config_is_local=true`, starts its auth server on the
+    container's `127.0.0.1:53682`, fails `xdg-open` and waits. The browser can never reach that
+    address, and Box redirects to `http://127.0.0.1:53682/` on the user's own machine. A second try
+    fails with `bind: address already in use` until the app restarts. **Edit has the same bug:**
+    `config/update` on a remote with a token auto-answers "refresh?" with yes. A pasted `token`
+    alone does not help (it still refreshes) unless `config_refresh_token=false` is also sent.
+  - **Fix (`e7b4c98`):** `rclone_backup/rclone-web/oauth-headless.patch`, after `base-path.patch`. New
+    and Edit call rclone with `opt.nonInteractive` and `config_is_local=false` (rclone does not save
+    `config_*` keys), then show each question rclone returns in a dialog and continue with
+    `opt.continue`/`state`/`result`. For OAuth, that question is "run `rclone authorize "box"` and
+    paste the result". Cancelling a new remote deletes it (rclone saves it before the questions).
+    Docs: `DOCS.md` Remotes section and table.
+  - **Verified:** biome, `tsc -b`, `vite build`; rclone-web's Playwright suite 15/15 (3 new tests:
+    create with pasted token, cancel removes the remote, edit asks before refresh) on local rclone
+    1.75.2 with a scratch `RCLONE_CONFIG`; both patches at `--fuzz=0` reproduce the tested tree
+    exactly; aarch64 image builds; headless Chromium against the built image (rclone 1.74.3,
+    add-on's rcd flags): create, save, edit and keep token, 0 page errors, no auth-server log line.
+    **Not verified:** a real Box login (the tests use a fake token) and follow-up questions after a
+    real token (for example the OneDrive drive choice); no red-before run of the new UI tests (the
+    unpatched UI would open a real browser on the Mac), the rc reproduction stands in for it.
+  - [ ] Gearoid: bump the POC version, release, and add a real Box remote on HA.
+  - [ ] Optional, Gearoid's call: offer the patch upstream to `rclone/rclone-web`.
 - [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
   add-on repository in HA, install, open the panel.
 
