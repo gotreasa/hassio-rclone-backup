@@ -2,7 +2,7 @@ diff --git a/e2e/remotes-oauth.spec.ts b/e2e/remotes-oauth.spec.ts
 new file mode 100644
 --- /dev/null
 +++ b/e2e/remotes-oauth.spec.ts
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,102 @@
 +import { expect, test } from '@playwright/test'
 +import { getTestEnv, loginUrl, rcloneRC } from './helpers'
 +
@@ -79,6 +79,31 @@ new file mode 100644
 +    await expect(page).toHaveURL(/\/remotes$/)
 +    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
 +    expect(JSON.parse(config.token).refresh_token).toBe('test-refresh')
++})
++
++test('editing an OAuth remote can log in again without a browser question', async ({ page }) => {
++    await rcloneRC('/config/create', {
++        name: 'test-box',
++        type: 'box',
++        parameters: { token: TOKEN, config_refresh_token: 'false' },
++        opt: { nonInteractive: true },
++    })
++    await openRemotes(page)
++    await page.getByRole('button', { name: 'Edit test-box' }).click()
++    await page.getByRole('button', { name: 'Save Changes' }).click()
++
++    const dialog = page.getByRole('dialog')
++    await expect(dialog).toContainText(/token/i)
++    await dialog.getByRole('button', { name: /^true/ }).click()
++
++    await expect(dialog).toContainText('rclone authorize "box"')
++    await dialog.getByLabel('config_token').fill(TOKEN.replace('test-refresh', 'new-refresh'))
++    await dialog.getByRole('button', { name: 'Continue' }).click()
++
++    await expect(page).toHaveURL(/\/remotes$/)
++    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
++    expect(JSON.parse(config.token).refresh_token).toBe('new-refresh')
++    expect(config).not.toHaveProperty('config_is_local')
 +})
 diff --git a/src/components/ConfigQuestionDialog.tsx b/src/components/ConfigQuestionDialog.tsx
 new file mode 100644
@@ -373,7 +398,7 @@ diff --git a/src/rclone/config.ts b/src/rclone/config.ts
 new file mode 100644
 --- /dev/null
 +++ b/src/rclone/config.ts
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,99 @@
 +import rclone from '@/rclone/client'
 +
 +// One question from rclone's config state machine (fs.ConfigOut in rclone). rclone asks these for
@@ -406,7 +431,8 @@ new file mode 100644
 +
 +// rclone runs headless: never let it start its local browser login (a callback server on the rcd
 +// host's 127.0.0.1:53682, which the user's browser cannot reach). It then asks for the result of
-+// `rclone authorize` instead. config_* keys are not saved to the config file.
++// `rclone authorize` instead. config_* keys are not saved to the config file, so they are sent on
++// every call: rclone can reach the browser question later, after "refresh the token?" on an edit.
 +const HEADLESS_PARAMETERS = { config_is_local: 'false' }
 +
 +async function configCall(
@@ -447,7 +473,10 @@ new file mode 100644
 +    let out = await configCall(type ? '/config/create' : '/config/update', query)
 +
 +    while (out.State && out.Option) {
-+        const answer = await ask({ state: out.State, option: out.Option, error: out.Error ?? '' })
++        const answer =
++            out.Option.Name === 'config_is_local'
++                ? HEADLESS_PARAMETERS.config_is_local
++                : await ask({ state: out.State, option: out.Option, error: out.Error ?? '' })
 +
 +        if (answer === null) {
 +            if (type) {
@@ -458,7 +487,7 @@ new file mode 100644
 +
 +        out = await configCall(
 +            '/config/update',
-+            { name, parameters: JSON.stringify({}) },
++            { name, parameters: JSON.stringify(HEADLESS_PARAMETERS) },
 +            { continue: true, state: out.State, result: answer }
 +        )
 +    }
