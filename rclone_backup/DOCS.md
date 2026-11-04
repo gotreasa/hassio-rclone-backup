@@ -38,8 +38,8 @@ open the Web UI. The default job uses a remote called `google`. So you need a wo
 before the first start. An empty file is not enough.
 
 The best way is to create and test the file on your computer, then copy it to Home Assistant. Many
-providers, for example Google Drive and iCloud, open a page in your browser to log you in. The Web UI
-inside Home Assistant cannot do that step.
+providers, for example Google Drive and iCloud, open a page in your browser to log you in. rclone on
+your computer opens that page for you.
 
 ### 1. Create and test the config on your computer
 
@@ -103,7 +103,7 @@ Not every tab works inside Home Assistant. This table shows what to expect:
 | ------------- | ------------- | ---------------------------------------------------------------------- |
 | **Dashboard** | Works         | Shows remotes, mounts, transfer counters and the rclone version.       |
 | **Explorer**  | Works, limits | You can only see the folders that the app's security profile allows.  |
-| **Remotes**   | Works, limits | You cannot add a provider that logs in through a browser page here.    |
+| **Remotes**   | Works, limits | A provider with a browser login needs rclone on a computer too.        |
 | **Mounts**    | Works, limits | Share on your network with Samba share. A restart removes it.          |
 | **Serves**    | Does not work | Serves did not work in testing. Do not use this tab.                   |
 | **Transfers** | Works         | Copy and move files.                                                   |
@@ -135,10 +135,13 @@ what AppArmor blocked, look in the logs for lines that contain `apparmor="DENIED
 A remote is a connection to a storage provider, for example Google Drive, an S3 bucket or an SFTP
 server.
 
-You can add a remote in the Web UI only if the provider does not need a browser login. For example,
-S3, SFTP and WebDAV use keys or passwords, so they work. Google Drive and iCloud open a login page in
-a browser, and the Web UI cannot do that. For those, create the remote on your computer and copy the
-config, see **Before you start**.
+Some providers, for example S3, SFTP and WebDAV, use keys or passwords. You add them with the steps
+below.
+
+Other providers, for example Google Drive, OneDrive, Dropbox and Box, log you in through a page in
+your browser. rclone runs inside Home Assistant, so it cannot open that page for you. The Web UI asks
+you to log in on a computer that has rclone and a browser, then paste the result. See **Providers
+with a browser login** below.
 
 To add a remote in the Web UI:
 
@@ -148,6 +151,23 @@ To add a remote in the Web UI:
    the settings for each provider.
 4. Save the remote. The Web UI writes it to `/homeassistant/rclone.conf`.
 5. If a job uses the new remote, restart the app.
+
+#### Providers with a browser login
+
+When you save a remote for such a provider, the Web UI shows **rclone needs more information**:
+
+1. Read the command in the window, for example `rclone authorize "box"`.
+2. On your computer, run that command. Use the same rclone version as the app if you can. A page opens
+   in your browser. Log in and allow rclone to access your account.
+3. The command prints a token between the lines `Paste the following into your remote machine --->`
+   and `<---End paste`. The token starts with `{` and ends with `}`. Copy all of it.
+4. Paste the token into the Web UI and select **Continue**.
+
+If rclone has more questions, for example which OneDrive drive to use, the Web UI shows them one at a
+time. Select **Cancel** to stop. The Web UI then removes the new remote.
+
+When you edit one of these remotes, the Web UI asks if you want to replace the token. Select
+`false: No` to keep your login. Select `true: Yes` only to log in again.
 
 ### Mounts
 
@@ -331,8 +351,8 @@ List of flags to give the rclone command, applied globally to all jobs. For use 
 
 ### Configuring Rclone Remotes
 
-To add a remote in the Web UI, see **Remotes** (under **Using the Web UI**). For providers that need a browser login, create
-the remote on your computer and copy the config, see **Before you start**. The
+To add a remote in the Web UI, see **Remotes** (under **Using the Web UI**). For providers that need a browser login, the
+Web UI asks you to paste a token from `rclone authorize` on your computer. The
 [rclone docs](https://rclone.org/docs/) describe each provider.
 
 ---
