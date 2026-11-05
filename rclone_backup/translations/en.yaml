@@ -11,8 +11,5 @@ configuration:
       schedule:
         name: Schedule
         description: >-
-          When to run the job. Use cron (minute hour day month weekday, for
-          example 10 4 * * * for 04:10 every day), or @hourly, @daily, @weekly,
-          @monthly, @yearly or @every 6h. Seconds are not supported. Leave
-          empty to run once when the app starts. In YAML, quote values that
-          start with @ or *, for example "@hourly".
+          Cron: minute hour day month weekday (10 4 * * * is 04:10 every day).
+          Or @hourly, @daily, @weekly, @every 6h. Empty: run at start-up.

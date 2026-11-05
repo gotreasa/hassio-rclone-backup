@@ -293,8 +293,10 @@ No Jira item, by Gearoid's choice.
   - **Verified:** the file matches Supervisor's `SCHEMA_APP_TRANSLATIONS` (`apps/validate.py:594`)
     and the frontend's `configuration.jobs.fields.<field>` lookup; every table row parses with
     gocron v2.21.2 `CronJob(.., false)`, and six fields and `@startup` fail; PyYAML rejects
-    unquoted `@hourly` and `*/15 * * * *`. **Not verified:** how the helper text looks in a real
-    HA install. Needs a release to show up.
+    unquoted `@hourly` and `*/15 * * * *`. Released as `3.5.0-poc.15` (`5b3d82f`, bump `8079bd8`).
+  - **Gearoid on poc.15 (2026-11-05):** the schedule helper text was a hard-to-read four-line
+    block. Cut to two short sentences; the YAML quoting tip is gone from the UI (the form quotes
+    for you) and stays in `DOCS.md` with the seconds note. Needs poc.16.
 
 ## Findings
 
