@@ -320,8 +320,29 @@ No Jira item, by Gearoid's choice.
     apply at `--fuzz=0` to a fresh 1.2.0 tarball and reproduce the tested tree; the Dockerfile
     `webui` stage builds. **Not verified:** on HA itself, and against rclone 1.74.3 in the UI path
     (the RCA ran the rc calls on 1.74.3).
-  - [ ] Gearoid: repair the Box section of `/homeassistant/rclone.conf`, release poc.16, paste a
-    token on HA.
+  - [x] Released as `3.5.0-poc.17` (`e606d2c`, bump `5bf1d30`).
+  - **Defect found by Gearoid on poc.17 (2026-11-05):** the file was clean before (repaired by hand,
+    then the app updated), yet after Edit, refresh, paste it again had `expiry`, `refresh_token`
+    and `token_type` keys, with values from yesterday's broken token. RCA by `nw-troubleshooter`
+    (UNREVIEWED), re-checked against the code; it reproduced the file byte for byte, key order
+    included. **Cause (upstream rclone-web, inherited):** the query cache is saved to
+    `localStorage` for 30 days with a fixed buster (`src/lib/query.ts`), cleared only on login,
+    which add-on users never do. An Edit visit while the file was corrupt cached the junk keys;
+    the next Edit filled its form from that cache (`RemotesEdit.tsx`, filled once, first data) and
+    Save sent every key back. Rejected: rclone keeping a stale copy (it reloads the file on change,
+    `configfile.go:34-46`; no write on stop) and a second config copy in the add-on (`init.sh`
+    only exports `RCLONE_CONFIG`, unless the `rclone_config` option is set). Also: Edit resent the
+    cached token, and remote secrets sat in the HA origin's `localStorage`.
+  - **Fix (Gearoid's choice: fresh data, changed values only):** the remote config query has
+    `meta.persist: false` and `gcTime: 0`, and the persister skips such queries; buster `116-1`
+    drops caches saved by earlier builds; the Edit form fills only from a fetch after mount; Save
+    sends only values that differ from the loaded config.
+  - **Verified:** 2 new tests red on poc.17 for the reported reasons (stale `token_type` written
+    back; the token in `localStorage`) and green on the fix, plus a guard test that a changed
+    `client_id` is saved and the token kept; suite 22/22 on local rclone 1.75.2; Biome and
+    `tsc -b` clean; patch reproduces the tested tree from a fresh 1.2.0 tarball; `webui` stage
+    builds. **Not verified:** on HA.
+  - [ ] Gearoid: release poc.18, repair the Box section again, then edit and paste on HA.
 
 ## Findings
 

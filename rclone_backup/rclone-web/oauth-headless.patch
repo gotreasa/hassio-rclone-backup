@@ -2,7 +2,7 @@ diff --git a/e2e/remotes-oauth.spec.ts b/e2e/remotes-oauth.spec.ts
 new file mode 100644
 --- /dev/null
 +++ b/e2e/remotes-oauth.spec.ts
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,219 @@
 +import { expect, test } from '@playwright/test'
 +import { getTestEnv, loginUrl, rcloneRC } from './helpers'
 +
@@ -152,6 +152,75 @@ new file mode 100644
 +    await expect(page).toHaveURL(/\/remotes$/)
 +    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
 +    expect(JSON.parse(config.token).refresh_token).toBe('test-refresh')
++})
++
++async function createBox(parameters: Record<string, string>) {
++    await rcloneRC('/config/create', {
++        name: 'test-box',
++        type: 'box',
++        parameters: { config_refresh_token: 'false', ...parameters },
++        opt: { nonInteractive: true },
++    })
++}
++
++async function editBox(page: import('@playwright/test').Page) {
++    await page.getByRole('button', { name: 'Edit test-box' }).click()
++    await expect(page.getByRole('button', { name: 'Save Changes' })).toBeEnabled()
++}
++
++test('editing does not write back a config read on an earlier visit', async ({ page }) => {
++    // An earlier visit sees a key left over from a broken token
++    await createBox({ token: TOKEN, token_type: '"bearer",' })
++    await openRemotes(page)
++    await editBox(page)
++    // The cache is written at most once a second
++    await page.waitForTimeout(1500)
++
++    // The file is then repaired by hand, and the token renewed, outside the UI
++    await rcloneRC('/config/delete', { name: 'test-box' })
++    const NEW_TOKEN = TOKEN.replace('test-refresh', 'new-refresh')
++    await createBox({ token: NEW_TOKEN })
++
++    // A later visit, without logging in again
++    const { appUrl } = getTestEnv()
++    await page.goto(appUrl + '/remotes')
++    await editBox(page)
++    await page.getByRole('button', { name: 'Save Changes' }).click()
++    const dialog = page.getByRole('dialog')
++    await expect(dialog).toContainText(/token/i)
++    await dialog.getByRole('button', { name: /^false/ }).click()
++
++    await expect(page).toHaveURL(/\/remotes$/)
++    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
++    expect(config).not.toHaveProperty('token_type')
++    expect(config.token).toBe(NEW_TOKEN)
++})
++
++test('editing saves a changed value and keeps the rest', async ({ page }) => {
++    await createBox({ token: TOKEN })
++    await openRemotes(page)
++    await editBox(page)
++    await page.getByLabel('client_id', { exact: true }).fill('my-client')
++    await page.getByRole('button', { name: 'Save Changes' }).click()
++    const dialog = page.getByRole('dialog')
++    await expect(dialog).toContainText(/token/i)
++    await dialog.getByRole('button', { name: /^false/ }).click()
++
++    await expect(page).toHaveURL(/\/remotes$/)
++    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
++    expect(config.client_id).toBe('my-client')
++    expect(config.token).toBe(TOKEN)
++})
++
++test('a remote config is not kept in browser storage', async ({ page }) => {
++    await createBox({ token: TOKEN })
++    await openRemotes(page)
++    await editBox(page)
++    // The cache is written at most once a second
++    await page.waitForTimeout(1500)
++
++    const stored = await page.evaluate(() => JSON.stringify(window.localStorage))
++    expect(stored).not.toContain('test-access')
 +})
 diff --git a/src/components/ConfigQuestionDialog.tsx b/src/components/ConfigQuestionDialog.tsx
 new file mode 100644
@@ -336,6 +405,32 @@ diff --git a/src/languages/en.json b/src/languages/en.json
      "remotesDetails.backToSource": "Back to source",
      "remotesDetails.cancelTransfer": "Cancel transfer",
      "remotesDetails.copyHere": "Copy here",
+diff --git a/src/lib/query.ts b/src/lib/query.ts
+--- a/src/lib/query.ts
++++ b/src/lib/query.ts
+@@ -1,6 +1,6 @@
+ import { persistQueryClient } from '@tanstack/query-persist-client-core'
+ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+-import { hashKey, QueryClient } from '@tanstack/react-query'
++import { defaultShouldDehydrateQuery, hashKey, QueryClient } from '@tanstack/react-query'
+ 
+ export const persistedQueryCacheKey = 'lite-ui-persisted-query-cache'
+ 
+@@ -35,7 +35,13 @@
+     queryClient,
+     persister,
+     maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+-    buster: '116',
++    // Changed so caches saved before remote configs were left out are dropped
++    buster: '116-1',
++    dehydrateOptions: {
++        // A query with meta.persist false (a remote's config, with its secrets) stays in memory only
++        shouldDehydrateQuery: (query) =>
++            defaultShouldDehydrateQuery(query) && query.meta?.persist !== false,
++    },
+ })
+ 
+ export function clearPersistedQueryCache() {
 diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
 --- a/src/pages/RemotesEdit.tsx
 +++ b/src/pages/RemotesEdit.tsx
@@ -355,15 +450,63 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
  
  export function RemotesEditPage() {
      const t = useT()
-@@ -23,6 +25,7 @@
+@@ -21,8 +23,11 @@
+     const navigate = useNavigate()
+     const queryClient = useQueryClient()
      const [config, setConfig] = useState<Record<string, unknown>>({})
++    // The config as loaded, so Save can send only what the user changed
++    const [loadedConfig, setLoadedConfig] = useState<Record<string, unknown>>({})
      const [showMoreOptions, setShowMoreOptions] = useState(false)
      const [initialized, setInitialized] = useState(false)
 +    const configQuestions = useConfigQuestions()
  
      const remoteConfigQuery = useQuery({
          queryKey: ['remotes', remoteName, 'config'] as const,
-@@ -134,16 +137,10 @@
+@@ -34,6 +39,9 @@
+             return response
+         },
+         enabled: Boolean(remoteName),
++        // Holds the remote's secrets, and an old copy would be written back on Save: never keep it
++        meta: { persist: false },
++        gcTime: 0,
+     })
+ 
+     const backendsQuery = useQuery({
+@@ -103,9 +111,14 @@
+         [currentBackendFields]
+     )
+ 
+-    // Pre-fill config from existing remote data once loaded
++    // Pre-fill config from existing remote data once loaded, fresh from rclone
+     useEffect(() => {
+-        if (remoteConfigQuery.data && selectedBackend && !initialized) {
++        if (
++            remoteConfigQuery.data &&
++            remoteConfigQuery.isFetchedAfterMount &&
++            selectedBackend &&
++            !initialized
++        ) {
+             const existing = remoteConfigQuery.data
+             const prefilled: Record<string, unknown> = {}
+ 
+@@ -122,9 +135,15 @@
+             }
+ 
+             setConfig(prefilled)
++            setLoadedConfig(prefilled)
+             setInitialized(true)
+         }
+-    }, [remoteConfigQuery.data, selectedBackend, initialized])
++    }, [
++        remoteConfigQuery.data,
++        remoteConfigQuery.isFetchedAfterMount,
++        selectedBackend,
++        initialized,
++    ])
+ 
+     const updateRemoteMutation = useMutation({
+         mutationFn: async ({
+@@ -134,16 +153,10 @@
              name: string
              parameters: Record<string, unknown>
          }) => {
@@ -383,7 +526,23 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
              toast.success(t('remotesEdit.updateSuccess', { name }))
              queryClient.invalidateQueries({ queryKey: ['remotes'] })
              navigate('/remotes')
-@@ -171,6 +168,7 @@
+@@ -155,9 +168,13 @@
+     })
+ 
+     const handleSave = useCallback(() => {
+-        const parameters = { ...config }
++        // rclone keeps every key it is not sent, so send only the changes: resending a loaded value
++        // could put back a token that has since been renewed
++        const parameters = Object.fromEntries(
++            Object.entries(config).filter(([key, value]) => value !== loadedConfig[key])
++        )
+         updateRemoteMutation.mutate({ name: remoteName!, parameters })
+-    }, [config, updateRemoteMutation, remoteName])
++    }, [config, loadedConfig, updateRemoteMutation, remoteName])
+ 
+     const isPending = remoteConfigQuery.isPending || backendsQuery.isPending
+     const isError = remoteConfigQuery.isError || backendsQuery.isError
+@@ -171,6 +188,7 @@
  
      return (
          <PageWrapper>
