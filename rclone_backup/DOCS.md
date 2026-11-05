@@ -333,7 +333,15 @@ The cron form has five fields (minute, hour, day of month, month, day of week). 
 
 **Option:** `command`
 
-The rclone command to run e.g. `sync`, `copy`, `move`.
+The rclone command to run: `copy`, `sync` or `move`. Each one goes from the sources to the destination.
+
+| Command | What it does |
+| --- | --- |
+| `copy` | Copies new and changed files to the destination. It never deletes anything there. |
+| `sync` | Makes the destination match the source. Files at the destination that are not in the source are deleted, so backups that Home Assistant removes are removed from the destination too. |
+| `move` | Copies to the destination, then deletes the files from the source. Do not use it on `/backup` unless you want no local backups. |
+
+*Note: in version 3.5.0 and later, other commands such as `ls` or `delete` are not allowed in a job. If a saved job uses one, the app does not start until you change it. To look at or delete files once, use the Web UI.*
 
 **Option:** `include`
 
@@ -341,14 +349,17 @@ List of files or folders to include, see [rclone filtering](https://rclone.org/f
 
 *Note: these filters are matching the backups name on the filesystem, if you have not disabled renaming then this will be a slugified version of the backups name, this will effectively replace all special characters with an `_` and remove duplicate underscores.*
 
-To preview the slugified names of your backups you can add a startup job like the following.
+To preview the slugified names of your backups you can add a startup job like the following. It is a dry run to an empty folder, so it copies nothing, and the log shows each name as `<name>: Skipped copy as --dry-run is set`.
 
 ```yaml
 jobs:
-  - command: ls
-    name: List Local Backups
+  - command: copy
+    name: Preview Backup Names
     sources:
       - /backup
+    destination: /tmp/preview
+    flags:
+      dry-run: true
 ```
 
 **Option:** `exclude`

@@ -7,7 +7,9 @@ configuration:
       command:
         name: Command
         description: >-
-          The rclone command to run, for example sync, copy, move, delete or ls.
+          copy: add new and changed files to the destination. sync: make the
+          destination match the source, deleting extra files there. move: copy,
+          then delete from the source.
       schedule:
         name: Schedule
         description: >-

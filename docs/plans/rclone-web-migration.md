@@ -343,6 +343,24 @@ No Jira item, by Gearoid's choice.
     `tsc -b` clean; patch reproduces the tested tree from a fresh 1.2.0 tarball; `webui` stage
     builds. **Not verified:** on HA.
   - [ ] Gearoid: release poc.18, repair the Box section again, then edit and paste on HA.
+- [x] Job `command` limited to `copy|sync|move` (Gearoid, 2026-11-05, after `ls` and `delete` jobs
+  failed with `needs 1 arguments maximum`: the default job's `destination` was still set, and the
+  scheduler adds it whenever set, `jobs.go:58-63`). Reverses the 2026-11-04 "keep free text"
+  decision. Route: working directly, no review. Size S.
+  - **Decision (Gearoid):** jobs keep two locations in step; `ls` and `delete` are one-off work for
+    the Web UI. Trade-offs accepted: no scheduled prune of the remote (the README's `delete
+    min-age: 14d` example is gone; `sync` follows HA's own retention instead), a breaking change for
+    saved jobs with other commands (the app will not start until they are edited), and a further
+    drift from upstream.
+  - **Change:** `config.yaml` schema `command: list(copy|sync|move)` (a dropdown in each job);
+    helper text says what each command does; `DOCS.md` table, breaking note, and the slug-preview
+    example now a dry-run `copy` to an empty folder; README prune job removed.
+  - **Verified:** YAML parses; Supervisor's `RE_SCHEMA_ELEMENT` and `vol.In` (`apps/options.py:186`)
+    accept the three values and reject `ls`, `delete` and `Sync`; the frontend draws a `select`
+    for a list type inside the jobs object; a dry-run `copy` on rclone 1.75.2 logs `<name>: Skipped
+    copy as --dry-run is set` and creates nothing; the Web UI can delete files
+    (`RemotesDetails.tsx:323-327`). **Not verified:** the add-on linter (CI runs it) and the
+    dropdown on HA.
 
 ## Findings
 
