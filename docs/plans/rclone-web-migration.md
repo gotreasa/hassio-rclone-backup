@@ -297,6 +297,31 @@ No Jira item, by Gearoid's choice.
   - **Gearoid on poc.15 (2026-11-05):** the schedule helper text was a hard-to-read four-line
     block. Cut to two short sentences; the YAML quoting tip is gone from the UI (the form quotes
     for you) and stays in `DOCS.md` with the seconds note. Needs poc.16.
+- [x] Corrupt Box token after a paste (Gearoid's report, 2026-11-05): `rclone.conf` had the new
+  one-line `token` and, under it, leftover `token_type`/`refresh_token`/`expiry` lines. Route:
+  working directly; RCA by `nw-troubleshooter` (UNREVIEWED: its paired reviewer did not run),
+  re-checked against rclone v1.74.3 source and its reproduction files. Size S.
+  - **Cause:** the token dialog's textarea used `field-sizing-content`, so a token with no spaces
+    grew the field to about 5800 px, past the dialog, and pushed Continue off screen. Gearoid added
+    line breaks by hand to make it fit. The patch sent the value as typed, and rclone saves the
+    `*oauth-authorize` result unchecked (`lib/oauthutil/oauthutil.go:690-711`; its `\n` guard in
+    `fs/config/config.go:571-574` covers `parameters` only). After a restart, goconfig reads each
+    extra line as its own key; a later refresh replaces only `token`. A lone `}` line instead makes
+    the whole file fail to load (`could not parse line: }`), which stops every remote and job.
+  - **Fix (in `oauth-headless.patch`):** `normaliseToken` in `config.ts` drops whitespace and
+    writes JSON back on one line before the continue call; the textarea is `field-sizing-fixed`
+    with `break-all` and a height cap; the dialog fits the screen and scrolls; Enter submits.
+    Files already corrupt need the manual repair (delete the leftover lines).
+  - **Verified:** 3 new Playwright tests (wrapped paste saved on one line with no extra keys; a
+    600-character access token stays inside the dialog and Continue is fully on screen; Enter
+    submits) are red on the old patch for the reported reasons (field right edge 5801 px versus
+    dialog 886 px; a break inside a value left the dialog stuck) and green on the fix; suite 19/19
+    on local rclone 1.75.2 with a scratch `RCLONE_CONFIG`; Biome and `tsc -b` clean; both patches
+    apply at `--fuzz=0` to a fresh 1.2.0 tarball and reproduce the tested tree; the Dockerfile
+    `webui` stage builds. **Not verified:** on HA itself, and against rclone 1.74.3 in the UI path
+    (the RCA ran the rc calls on 1.74.3).
+  - [ ] Gearoid: repair the Box section of `/homeassistant/rclone.conf`, release poc.16, paste a
+    token on HA.
 
 ## Findings
 

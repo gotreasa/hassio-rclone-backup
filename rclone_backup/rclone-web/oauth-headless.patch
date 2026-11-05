@@ -2,7 +2,7 @@ diff --git a/e2e/remotes-oauth.spec.ts b/e2e/remotes-oauth.spec.ts
 new file mode 100644
 --- /dev/null
 +++ b/e2e/remotes-oauth.spec.ts
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,150 @@
 +import { expect, test } from '@playwright/test'
 +import { getTestEnv, loginUrl, rcloneRC } from './helpers'
 +
@@ -105,11 +105,59 @@ new file mode 100644
 +    expect(JSON.parse(config.token).refresh_token).toBe('new-refresh')
 +    expect(config).not.toHaveProperty('config_is_local')
 +})
++
++// A token with a long access token, as some providers issue. It has no spaces, so it cannot wrap at
++// a word break.
++const LONG_TOKEN = JSON.stringify({
++    access_token: 'a'.repeat(600),
++    token_type: 'Bearer',
++    refresh_token: 'long-refresh',
++    expiry: '2099-01-01T00:00:00Z',
++})
++
++test('a token pasted with line breaks is saved on one line', async ({ page }) => {
++    const dialog = await startBoxRemote(page)
++    // Breaks after commas and inside a value, as a hand-wrapped or terminal-wrapped paste has
++    const wrapped = `  ${TOKEN.replaceAll(',', ',\n').replace('test-access', 'test-\naccess')}\n`
++    await dialog.getByLabel('config_token').fill(wrapped)
++    await dialog.getByRole('button', { name: 'Continue' }).click()
++
++    await expect(page).toHaveURL(/\/remotes$/)
++    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
++    expect(config.token).not.toMatch(/[\n\r]/)
++    expect(JSON.parse(config.token)).toEqual(JSON.parse(TOKEN))
++    expect(Object.keys(config).sort()).toEqual(['token', 'type'])
++})
++
++test('a long token wraps inside the dialog and Continue stays on screen', async ({ page }) => {
++    const dialog = await startBoxRemote(page)
++    const field = dialog.getByLabel('config_token')
++    await field.fill(LONG_TOKEN)
++
++    const dialogBox = await dialog.boundingBox()
++    const fieldBox = await field.boundingBox()
++    expect(fieldBox!.x + fieldBox!.width).toBeLessThanOrEqual(dialogBox!.x + dialogBox!.width)
++    await expect(dialog.getByRole('button', { name: 'Continue' })).toBeInViewport({ ratio: 1 })
++
++    await dialog.getByRole('button', { name: 'Continue' }).click()
++    await expect(page).toHaveURL(/\/remotes$/)
++})
++
++test('pressing Enter in the token field submits the token', async ({ page }) => {
++    const dialog = await startBoxRemote(page)
++    const field = dialog.getByLabel('config_token')
++    await field.fill(TOKEN)
++    await field.press('Enter')
++
++    await expect(page).toHaveURL(/\/remotes$/)
++    const config = (await rcloneRC('/config/get', { name: 'test-box' })) as Record<string, string>
++    expect(JSON.parse(config.token).refresh_token).toBe('test-refresh')
++})
 diff --git a/src/components/ConfigQuestionDialog.tsx b/src/components/ConfigQuestionDialog.tsx
 new file mode 100644
 --- /dev/null
 +++ b/src/components/ConfigQuestionDialog.tsx
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,166 @@
 +import { useCallback, useId, useRef, useState } from 'react'
 +import { Alert, AlertDescription } from '@/components/ui/alert'
 +import { Button } from '@/components/ui/button'
@@ -184,7 +232,8 @@ new file mode 100644
 +                if (!open && !answered.current) onAnswer(null)
 +            }}
 +        >
-+            <DialogContent className="sm:max-w-lg">
++            {/* Fit the screen and scroll, so the buttons stay reachable */}
++            <DialogContent className="max-h-[calc(100dvh-2rem)] grid-cols-1 overflow-y-auto sm:max-w-lg">
 +                <DialogHeader>
 +                    <DialogTitle>{t('remotesConfig.title')}</DialogTitle>
 +                </DialogHeader>
@@ -229,8 +278,19 @@ new file mode 100644
 +                                    name={option.Name}
 +                                    value={value}
 +                                    onChange={(event) => setValue(event.target.value)}
++                                    // A token is one line, so Enter submits it like an input
++                                    onKeyDown={(event) => {
++                                        if (
++                                            event.key === 'Enter' &&
++                                            !event.nativeEvent.isComposing
++                                        ) {
++                                            event.preventDefault()
++                                            event.currentTarget.form?.requestSubmit()
++                                        }
++                                    }}
 +                                    rows={5}
-+                                    className="font-mono text-xs"
++                                    // A token has no spaces: wrap it anywhere, at the dialog's width
++                                    className="field-sizing-fixed max-h-48 break-all font-mono text-xs"
 +                                    spellCheck={false}
 +                                    autoFocus
 +                                />
@@ -398,7 +458,7 @@ diff --git a/src/rclone/config.ts b/src/rclone/config.ts
 new file mode 100644
 --- /dev/null
 +++ b/src/rclone/config.ts
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,119 @@
 +import rclone from '@/rclone/client'
 +
 +// One question from rclone's config state machine (fs.ConfigOut in rclone). rclone asks these for
@@ -434,6 +494,22 @@ new file mode 100644
 +// `rclone authorize` instead. config_* keys are not saved to the config file, so they are sent on
 +// every call: rclone can reach the browser question later, after "refresh the token?" on an edit.
 +const HEADLESS_PARAMETERS = { config_is_local: 'false' }
++
++// rclone saves a pasted token as typed, and a line break in it corrupts the config file: after a
++// restart rclone reads each extra line as a key of its own. A token from `rclone authorize` is
++// JSON (or a base64 blob) with no spaces in its values, so drop line breaks and spaces, and write
++// JSON back on one line.
++export function normaliseToken(value: string) {
++    const compact = value.replace(/\s+/g, '')
++    for (const candidate of [value, compact]) {
++        try {
++            return JSON.stringify(JSON.parse(candidate))
++        } catch {
++            // not JSON in this form
++        }
++    }
++    return compact
++}
 +
 +async function configCall(
 +    path: '/config/create' | '/config/update',
@@ -488,7 +564,11 @@ new file mode 100644
 +        out = await configCall(
 +            '/config/update',
 +            { name, parameters: JSON.stringify(HEADLESS_PARAMETERS) },
-+            { continue: true, state: out.State, result: answer }
++            {
++                continue: true,
++                state: out.State,
++                result: out.Option.Name === 'config_token' ? normaliseToken(answer) : answer,
++            }
 +        )
 +    }
 +
