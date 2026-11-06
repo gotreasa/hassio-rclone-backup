@@ -385,10 +385,14 @@ No Jira item, by Gearoid's choice.
     https://github.com/gotreasa/hassio-rclone-backup/actions/runs/42206310429, Deploy (all five
     arches) https://github.com/gotreasa/hassio-rclone-backup/actions/runs/42226948062; the aarch64
     image pulls anonymously.
-  - [ ] **Open, found while writing the flags property (pre-existing, upstream):** a `flags`
-    value with a space is wrapped by `strconv.Quote` (`utils.go:62-63`), and with no shell rclone
-    receives the quote marks: `--include="a b.txt"` matches nothing (checked on rclone 1.75.2).
-    Not fixed; needs Gearoid's call.
+  - [x] **Found while writing the flags property (pre-existing, upstream):** a `flags` value with
+    a space was wrapped by `strconv.Quote` (`utils.go:62-63`), and with no shell rclone received
+    the quote marks: `--include="a b.txt"` matched nothing (checked on rclone 1.75.2; the unquoted
+    single argument matches). **Fixed (Gearoid's ask, 2026-11-06):** the quoting is removed, so
+    a value reaches rclone as written. `FuzzFlagMapToList` now requires `--name=value` exactly
+    (only `True`/`False` lowercased): red on the old code for `a b.txt` and a value with quotes,
+    green after; 60 s fuzz, about 3.9 million inputs, no failures; `go vet` and `gofmt` clean.
+    Not yet released.
 
 ## Findings
 

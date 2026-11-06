@@ -10,13 +10,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// FuzzFlagMapToList each flag becomes exactly one `--name[=value]` argument
+// FuzzFlagMapToList each flag becomes exactly one `--name[=value]` argument, and the value reaches
+// rclone as written: there is no shell to remove quotes, so rclone would read them as part of it
 func FuzzFlagMapToList(f *testing.F) {
 	f.Add("drive_use_trash", "False")
 	f.Add("min-age", "14d")
 	f.Add("--fast-list", "")
 	f.Add("exclude", "None")
 	f.Add("user-agent", "my agent")
+	f.Add("include", "a b.txt")
+	f.Add("header", `X-Note: "quoted"`)
 	f.Fuzz(func(t *testing.T, key string, value string) {
 		args := FlagMapToList(Flags{key: value})
 		if len(args) != 1 {
@@ -34,13 +37,12 @@ func FuzzFlagMapToList(f *testing.F) {
 			}
 			return
 		}
-		if !strings.HasPrefix(arg, "--"+name+"=") {
-			t.Fatalf("flag %q=%q gave %q", key, value, arg)
-		}
+		want := value
 		if value == "True" || value == "False" {
-			if want := "--" + name + "=" + strings.ToLower(value); arg != want {
-				t.Fatalf("bool flag %q=%q gave %q, want %q", key, value, arg, want)
-			}
+			want = strings.ToLower(value)
+		}
+		if arg != "--"+name+"="+want {
+			t.Fatalf("flag %q=%q gave %q, want %q", key, value, arg, "--"+name+"="+want)
 		}
 	})
 }
