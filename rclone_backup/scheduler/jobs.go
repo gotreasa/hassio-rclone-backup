@@ -53,8 +53,8 @@ func CreateJob(job JobConfig) func() {
 	}
 }
 
-func RunJob(job JobConfig, source string, destination string) {
-	// generate rclone command
+// BuildArgs generate the rclone command arguments for a job
+func BuildArgs(job JobConfig, source string, destination string) []string {
 	args := []string{job.Command, source}
 
 	// destination is not required
@@ -81,6 +81,12 @@ func RunJob(job JobConfig, source string, destination string) {
 	args = append(args, config.ExtraFlags...)
 	args = append(args, FlagMapToList(job.Flags)...)
 	args = append(args, job.ExtraFlags...)
+	return args
+}
+
+func RunJob(job JobConfig, source string, destination string) {
+	// generate rclone command
+	args := BuildArgs(job, source, destination)
 
 	Infoln("running", JobInfo(job, "job", source, destination))
 	Debugln("rclone", args)
