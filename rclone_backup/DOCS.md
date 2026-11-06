@@ -102,10 +102,9 @@ Not every tab works inside Home Assistant. This table shows what to expect:
 | Tab           | Status        | What to know                                                           |
 | ------------- | ------------- | ---------------------------------------------------------------------- |
 | **Dashboard** | Works         | Shows remotes, mounts, transfer counters and the rclone version.       |
-| **Explorer**  | Works, limits | You can only see the folders that the app's security profile allows. No **Download** button. |
+| **Explorer**  | Works, limits | You can only see the folders that the app's security profile allows.  |
 | **Remotes**   | Works, limits | A provider with a browser login needs rclone on a computer too.        |
-| **Mounts**    | Works, limits | Share on your network with Samba share. A restart removes it.          |
-| **Serves**    | Removed       | Use a mount and another app to share files. See **Serves** below.      |
+| **Mounts**    | Works, limits | Share on your network with another app. A restart removes it.          |
 | **Transfers** | Works         | Copy and move files.                                                   |
 | **Settings**  | Works         | Needs `/homeassistant/rclone.conf` to exist before the app starts.     |
 
@@ -174,7 +173,8 @@ When you edit one of these remotes, the Web UI asks if you want to replace the t
 A mount makes a remote look like a local folder. Before you start, know these limits:
 
 - **The mount stays inside this app.** It does not appear on your network by itself. To share it,
-  mount it under `/share` or `/media`, then use the Samba share app to share that folder.
+  mount it under `/share` or `/media`, then share that folder with another app. See **Share a
+  mount on your network** below.
 - **A mount does not survive a restart.** When the app restarts, or Home Assistant restarts, the mount
   is gone. You must create it again.
 - **The mount folder must already exist.** The Web UI does not create it.
@@ -190,26 +190,17 @@ To create a mount:
 
 After each restart of the app or of Home Assistant, do steps 2 to 4 again.
 
-### Serves
+#### Share a mount on your network
 
-**Removed.** A serve (for example WebDAV, FTP, SFTP, HTTP or DLNA) runs inside this app's container,
-and the app does not open network ports, so devices on your network cannot connect to it. Other apps
-on Home Assistant's internal network can connect to it, with no login. The Web UI has no Serves tab,
-and the app blocks the `serve/*` requests of the rclone API.
+Mount the remote under `/share` or `/media`, then install an app that shares that folder, for
+example:
 
-To share the files of a remote on your network, use a mount and another app:
+- **Samba share** (SMB), the official app.
+- [NFS Server](https://github.com/sam-ward/nfs-ganesha-addon) (NFSv4), a community app.
+- [FTP](https://github.com/hassio-addons/app-ftp) (FTP or FTPS), a community app.
 
-1. Mount the remote under `/share` or `/media`. See **Mounts**.
-2. Install an app that shares that folder, for example:
-   - **Samba share** (SMB), the official app.
-   - [NFS Server](https://github.com/sam-ward/nfs-ganesha-addon) (NFSv4), a community app.
-   - [FTP](https://github.com/hassio-addons/app-ftp) (FTP or FTPS), a community app.
-
-When this app restarts, the mount is gone and the other app shows an empty folder. Create the mount
-again, as described in **Mounts**.
-
-For the same reason, Explorer has no **Download** button: a download used a serve. The Web UI also
-does not offer to update rclone, because the app's image sets the rclone version.
+When this app restarts, the mount is gone and the other app shows an empty folder until you create
+the mount again.
 
 ### Settings
 

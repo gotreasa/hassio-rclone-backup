@@ -418,6 +418,10 @@ No Jira item, by Gearoid's choice.
     NFS Server or FTP (links checked: 200, repos not archived; the FTP repo is now
     `hassio-addons/app-ftp`); Explorer row notes no Download. Security review: new S6 and
     recommendation 6. That file is untracked and marked private, so it is not committed.
+    **Changed (Gearoid, 2026-11-06, after poc.21 was pushed):** the docs no longer mention Serves
+    or Download at all, because the UI hides them. The Serves row, the Serves section and the
+    Download note are gone; the list of apps that can share a mount moved to a new "Share a mount
+    on your network" part of Mounts.
   - [x] 5. Tests.
     - Playwright `e2e/no-serves.spec.ts` (3 tests): red on the old tree for the right reasons
       (Serves link, Download button, `selfupdate --check` sent); the redirect check red with the
