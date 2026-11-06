@@ -427,8 +427,19 @@ No Jira item, by Gearoid's choice.
       known deep-link limit), so the test navigates inside the app.
     - `rclone_backup/tests/ingress-rig.sh` (new, tracked): HA-shaped network, nginx from the base
       image with `apk` nginx, rclone at the Dockerfile pin. 16 checks. Red on the old
-      `nginx.conf`: 11 failures, 5 serves started (plain, `//`, `%73`, `%2F`, `job/batch`).
-      Green on the new one: 16/16.
+      `nginx.conf`: 12 failures (corrected from 11 after review), 5 serves started (plain, `//`,
+      `%73`, `%2F`, `job/batch`). Green on the new one: 16/16.
+  - [x] **Adversarial review** (Gearoid's ask, 2026-11-06): a fresh `general-purpose` agent with
+    no context, read-only. No blockers or majors; 13 more bypass spellings all 403. Each finding
+    re-checked against source. Fixed (Gearoid's go): (1) the security review's table and S1 still
+    described the pre-poc.2 setup; (2) DOCS and the `05ffbba` message said nothing on the network
+    can reach a serve, but other add-ons can; (3) the nginx comment pointed at a DOCS note that
+    did not exist; (5) the rig counted a failed `serve/list` as 0 serves; (6) a mistyped conf
+    path made Docker create a directory; (7) the counts above and in S6; (8) the rig header
+    overstated how closely it copies the add-on; (11) S6 now says who passes ingress more
+    carefully. (4) No new test ran in CI: Gearoid chose option A, the rig runs as a CI job.
+    Rejected: (9) dead code left in the patched tree, kept on purpose to keep the patch small and
+    absent from the bundle. Left as nits: (10) the fixed 1 s wait in the Playwright spec.
 
 ## Findings
 

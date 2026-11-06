@@ -193,8 +193,9 @@ After each restart of the app or of Home Assistant, do steps 2 to 4 again.
 ### Serves
 
 **Removed.** A serve (for example WebDAV, FTP, SFTP, HTTP or DLNA) runs inside this app's container,
-and the app does not open network ports, so nothing on your network can connect to it. The Web UI
-has no Serves tab, and the app blocks the requests that start a serve.
+and the app does not open network ports, so devices on your network cannot connect to it. Other apps
+on Home Assistant's internal network can connect to it, with no login. The Web UI has no Serves tab,
+and the app blocks the `serve/*` requests of the rclone API.
 
 To share the files of a remote on your network, use a mount and another app:
 

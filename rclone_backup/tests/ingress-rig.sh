@@ -3,9 +3,10 @@
 # Ingress rig for the add-on's nginx proxy
 #
 # Builds an HA-shaped Docker network (172.30.32.0/23) with the Supervisor's ingress proxy at
-# 172.30.32.2 and another add-on at 172.30.33.10. rclone runs as the add-on runs it (rcd on
-# 127.0.0.1:5572, the version pinned in the Dockerfile), and nginx from the add-on's base image
-# shares its network namespace and loads the given nginx.conf.
+# 172.30.32.2 and another add-on at 172.30.33.10. rclone runs `rcd --rc-no-auth` on
+# 127.0.0.1:5572 at the version pinned in the Dockerfile, like the add-on but without the Web UI
+# files (`--rc-files`), which do not change how rc calls are routed. nginx from the add-on's base
+# image shares its network namespace and loads the given nginx.conf.
 #
 # Usage: rclone_backup/tests/ingress-rig.sh [path/to/nginx.conf]
 # Needs Docker. Prints one line per check and exits 1 if any check fails.
@@ -14,6 +15,8 @@ set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 conf=${1:-$here/../rootfs/etc/nginx/nginx.conf}
+# Docker would create a missing bind-mount source as an empty directory
+[ -f "$conf" ] || { echo "not a file: $conf" >&2 && exit 2; }
 conf=$(cd "$(dirname "$conf")" && pwd)/$(basename "$conf")
 
 case $(uname -m) in
@@ -84,7 +87,12 @@ check "Supervisor blocked from job/batch (it can call serve/start)" 403 \
 check "rclone method names are case-sensitive, so /Serve/start is not a method" 404 \
     "$(post "$supervisor_ip" /Serve/start "$serve")"
 
-serves=$(docker exec "$rig-addon" rclone rc serve/list | grep -c '"id"' || true)
+# Asked inside the container, past nginx; a failed call must fail the check, not count as 0
+if list=$(docker exec "$rig-addon" rclone rc serve/list); then
+    serves=$(printf '%s' "$list" | grep -c '"id"' || true)
+else
+    serves="no answer from serve/list"
+fi
 check "no serve is running after the blocked calls" 0 "$serves"
 
 for path in /serve/list /serve/types /serve/stop /serve/stopall; do
