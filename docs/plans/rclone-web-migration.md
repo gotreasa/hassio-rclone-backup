@@ -393,8 +393,11 @@ No Jira item, by Gearoid's choice.
     (only `True`/`False` lowercased): red on the old code for `a b.txt` and a value with quotes,
     green after; 60 s fuzz, about 3.9 million inputs, no failures; `go vet` and `gofmt` clean.
     Not yet released.
-- [ ] **Remove Serves** (Gearoid's go, 2026-11-06, steps 1 to 5). Route: working directly, no
-  independent review. Size M.
+- [x] **Remove Serves** (Gearoid's go, 2026-11-06, steps 1 to 5). Route: working directly, no
+  independent review. Size M. Commits `05ffbba`, `b3455cf`, `ef3f957`. Full aarch64 image builds
+  (all three patches apply with Alpine's GNU `patch`); `nginx -t` passes in the image; the shipped
+  bundle has no `serve/*` or `selfupdate` code (only unused translation text). Not run: the full
+  s6 rig on the built image, and a real HA instance. Not yet released (needs a POC version bump).
   - Why (checked on rclone 1.74.3): serves listen on container loopback by default and the add-on
     publishes no ports, so a serve cannot be reached from the LAN. Other HA apps (Samba, NFS Server,
     FTP) can share a mount under `/share` or `/media` instead. Download in the file browser
