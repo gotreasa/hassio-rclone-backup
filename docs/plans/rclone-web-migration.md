@@ -361,6 +361,30 @@ No Jira item, by Gearoid's choice.
     copy as --dry-run is set` and creates nothing; the Web UI can delete files
     (`RemotesDetails.tsx:323-327`). **Not verified:** the add-on linter (CI runs it) and the
     dropdown on HA.
+  - Committed as `1e8da48` (signed); the poc.19 version bump went into the same commit.
+- [x] Fuzz tests (Gearoid's ask, 2026-11-05: token normaliser, scheduler args, Edit changed-only
+  diff, job command dropdown). Route: working directly, no review. Size M.
+  - **Go (`rclone_backup/scheduler/jobs_fuzz_test.go`, native `go test -fuzz`):** `BuildArgs`
+    pulled out of `RunJob` (same arguments, same order). `FuzzFlagMapToList` (one `--name[=value]`
+    argument per flag), `FuzzBuildArgs` (command, paths, filters and `--dry-run` in place),
+    `FuzzCommandSchema` and `TestDocumentedCommands` (read the real `config.yaml` schema with
+    Supervisor's `list()` rule, `apps/options.py:186`; every command in the defaults, `DOCS.md` and
+    `README.md` is accepted). 60 s each: about 8.4, 8.5 and 9.4 million inputs, no failures after
+    one model fix (underscores become dashes before the `--` check; corpus kept in `testdata/`).
+  - **rclone-web (`e2e/values-fuzz.spec.ts` in the patch):** seeded PRNG, no new dependency (no
+    lockfile change); replay with `FUZZ_SEED`/`FUZZ_RUNS`; 5000 runs by default, `node:assert` in
+    the loop (Playwright `expect` was far too slow). `normaliseToken` and `changedValues` moved to
+    `src/rclone/values.ts` (no imports). Six properties pass at 1,000,000 runs each.
+  - **Defect found by fuzzing (in poc.17 and poc.18):** `normaliseToken` tried the paste as typed
+    first, so a space inside a value (a line break turned into a space) left valid JSON and a token
+    with a space in it was saved. Fix: always strip all whitespace (token values have none), and
+    re-serialise only a JSON object. Red on seed `20261142` before, green after.
+  - Suite 28/28; Biome and `tsc -b` clean; patch reproduces the tested tree; full aarch64 image
+    builds.
+  - [ ] **Open, found while writing the flags property (pre-existing, upstream):** a `flags`
+    value with a space is wrapped by `strconv.Quote` (`utils.go:62-63`), and with no shell rclone
+    receives the quote marks: `--include="a b.txt"` matches nothing (checked on rclone 1.75.2).
+    Not fixed; needs Gearoid's call.
 
 ## Findings
 

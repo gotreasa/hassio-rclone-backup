@@ -222,6 +222,155 @@ new file mode 100644
 +    const stored = await page.evaluate(() => JSON.stringify(window.localStorage))
 +    expect(stored).not.toContain('test-access')
 +})
+diff --git a/e2e/values-fuzz.spec.ts b/e2e/values-fuzz.spec.ts
+new file mode 100644
+--- /dev/null
++++ b/e2e/values-fuzz.spec.ts
+@@ -0,0 +1,144 @@
++import assert from 'node:assert/strict'
++import { test } from '@playwright/test'
++import { changedValues, normaliseToken } from '../src/rclone/values'
++
++// Seeded random checks of the remote config helpers. They run in Node, without a browser, and use
++// node:assert because Playwright's expect is too slow for thousands of runs.
++// Replay a failure with the seed in its message: FUZZ_SEED=<seed> npx playwright test values-fuzz
++const SEED = Number(process.env.FUZZ_SEED ?? 20261105)
++const RUNS = Number(process.env.FUZZ_RUNS ?? 5000)
++
++// mulberry32: a small, fast PRNG that is the same on every machine for a seed
++function random(seed: number) {
++    let state = seed >>> 0
++    return () => {
++        state = (state + 0x6d2b79f5) >>> 0
++        let t = state
++        t = Math.imul(t ^ (t >>> 15), t | 1)
++        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
++        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
++    }
++}
++
++type Random = () => number
++
++const int = (rand: Random, min: number, max: number) => min + Math.floor(rand() * (max - min + 1))
++const pick = <T>(rand: Random, items: readonly T[]) => items[int(rand, 0, items.length - 1)]
++const text = (rand: Random, chars: string, min: number, max: number) =>
++    Array.from({ length: int(rand, min, max) }, () => pick(rand, chars.split(''))).join('')
++
++// The characters OAuth tokens and expiry times use: no spaces or line breaks
++const TOKEN_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~+/=:'
++const WHITESPACE = ['\n', '\r\n', '\r', ' ', '\t', '  \n  '] as const
++
++function tokenObject(rand: Random) {
++    const token: Record<string, unknown> = {
++        access_token: text(rand, TOKEN_CHARS, 1, 400),
++        token_type: pick(rand, ['Bearer', 'bearer']),
++        refresh_token: text(rand, TOKEN_CHARS, 0, 200),
++        expiry: text(rand, TOKEN_CHARS, 1, 40),
++    }
++    if (rand() < 0.5) token.expires_in = int(rand, 0, 100_000)
++    return token
++}
++
++// Line breaks and spaces anywhere, inside values too, as a hand-wrapped paste has
++function wrap(rand: Random, value: string) {
++    const chars = value.split('')
++    for (let i = int(rand, 0, 12); i > 0; i--) {
++        chars.splice(int(rand, 0, chars.length), 0, pick(rand, WHITESPACE))
++    }
++    return chars.join('')
++}
++
++// Any text, including line breaks, quotes, braces and non-ASCII characters
++// U+2028 and U+2029 end a line in JavaScript source, so they are built from their codes
++const LINE_SEPARATORS = String.fromCharCode(0x2028, 0x2029)
++const ANY_CHARS = `${TOKEN_CHARS}{}[]",\\ \n\r\t'é😀${LINE_SEPARATORS}`
++
++function check(name: string, property: (rand: Random, run: number) => void) {
++    test(name, () => {
++        for (let run = 0; run < RUNS; run++) {
++            const seed = SEED + run
++            try {
++                property(random(seed), run)
++            } catch (error) {
++                throw new Error(`${name}: failed with FUZZ_SEED=${seed} FUZZ_RUNS=1\n${error}`)
++            }
++        }
++    })
++}
++
++check('a wrapped JSON token comes back as the original one-line token', (rand) => {
++    const token = JSON.stringify(tokenObject(rand))
++    const pasted = wrap(rand, token)
++    assert.equal(normaliseToken(pasted), token, JSON.stringify(pasted))
++})
++
++check('a wrapped base64 blob comes back as the original blob', (rand) => {
++    const blob = btoa(JSON.stringify(tokenObject(rand)))
++    const pasted = wrap(rand, blob)
++    assert.equal(normaliseToken(pasted), blob, JSON.stringify(pasted))
++})
++
++check('a pretty-printed, wrapped token comes back as the original one-line token', (rand) => {
++    const token = tokenObject(rand)
++    const pasted = wrap(rand, JSON.stringify(token, null, int(rand, 1, 8)))
++    assert.equal(normaliseToken(pasted), JSON.stringify(token), JSON.stringify(pasted))
++})
++
++const LINE_BREAK = new RegExp(`[\r\n${LINE_SEPARATORS}]`)
++
++check('the result never has a line break, and normalising again changes nothing', (rand) => {
++    const input = text(rand, ANY_CHARS, 0, 60)
++    const once = normaliseToken(input)
++    assert.doesNotMatch(once, LINE_BREAK, JSON.stringify(input))
++    assert.equal(normaliseToken(once), once, JSON.stringify(input))
++})
++
++const KEYS = [
++    'client_id',
++    'client_secret',
++    'token',
++    'root_folder_id',
++    'box_sub_type',
++    'upload_cutoff',
++]
++
++function value(rand: Random): unknown {
++    return pick(rand, [
++        () => text(rand, TOKEN_CHARS, 0, 8),
++        () => rand() < 0.5,
++        () => int(rand, -3, 3),
++        () => '',
++    ])()
++}
++
++check('only the values the user changed are sent', (rand) => {
++    const loaded: Record<string, unknown> = {}
++    for (const key of KEYS) if (rand() < 0.7) loaded[key] = value(rand)
++
++    // The form starts as the loaded config, then the user edits, clears or adds fields
++    const config = { ...loaded }
++    for (const key of KEYS) {
++        if (rand() < 0.3) config[key] = value(rand)
++    }
++
++    const sent = changedValues(config, loaded)
++    const context = JSON.stringify({ loaded, config, sent })
++    for (const key of Object.keys(sent)) {
++        assert.ok(key in config, context)
++        assert.notEqual(sent[key], loaded[key], context)
++    }
++    for (const [key, edited] of Object.entries(config)) {
++        if (edited !== loaded[key]) assert.equal(sent[key], edited, context)
++    }
++    // rclone keeps what it is not sent, so the remote ends up as the form shows it
++    assert.deepEqual({ ...loaded, ...sent }, { ...loaded, ...config }, context)
++})
++
++check('an unchanged form sends nothing', (rand) => {
++    const loaded: Record<string, unknown> = {}
++    for (const key of KEYS) if (rand() < 0.7) loaded[key] = value(rand)
++    assert.deepEqual(changedValues({ ...loaded }, loaded), {})
++})
 diff --git a/src/components/ConfigQuestionDialog.tsx b/src/components/ConfigQuestionDialog.tsx
 new file mode 100644
 --- /dev/null
@@ -442,15 +591,16 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
  import { OptionField } from '@/components/OptionField'
  import { PageContent } from '@/components/PageContent'
  import { PageHeader } from '@/components/PageHeader'
-@@ -14,6 +15,7 @@
+@@ -14,6 +15,8 @@
  import { Spinner } from '@/components/ui/spinner'
  import { useT } from '@/lib/i18n'
  import rclone from '@/rclone/client'
 +import { runRemoteConfig } from '@/rclone/config'
++import { changedValues } from '@/rclone/values'
  
  export function RemotesEditPage() {
      const t = useT()
-@@ -21,8 +23,11 @@
+@@ -21,8 +24,11 @@
      const navigate = useNavigate()
      const queryClient = useQueryClient()
      const [config, setConfig] = useState<Record<string, unknown>>({})
@@ -462,7 +612,7 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
  
      const remoteConfigQuery = useQuery({
          queryKey: ['remotes', remoteName, 'config'] as const,
-@@ -34,6 +39,9 @@
+@@ -34,6 +40,9 @@
              return response
          },
          enabled: Boolean(remoteName),
@@ -472,7 +622,7 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
      })
  
      const backendsQuery = useQuery({
-@@ -103,9 +111,14 @@
+@@ -103,9 +112,14 @@
          [currentBackendFields]
      )
  
@@ -489,7 +639,7 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
              const existing = remoteConfigQuery.data
              const prefilled: Record<string, unknown> = {}
  
-@@ -122,9 +135,15 @@
+@@ -122,9 +136,15 @@
              }
  
              setConfig(prefilled)
@@ -506,7 +656,7 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
  
      const updateRemoteMutation = useMutation({
          mutationFn: async ({
-@@ -134,16 +153,10 @@
+@@ -134,16 +154,10 @@
              name: string
              parameters: Record<string, unknown>
          }) => {
@@ -526,23 +676,21 @@ diff --git a/src/pages/RemotesEdit.tsx b/src/pages/RemotesEdit.tsx
              toast.success(t('remotesEdit.updateSuccess', { name }))
              queryClient.invalidateQueries({ queryKey: ['remotes'] })
              navigate('/remotes')
-@@ -155,9 +168,13 @@
+@@ -155,9 +169,11 @@
      })
  
      const handleSave = useCallback(() => {
 -        const parameters = { ...config }
-+        // rclone keeps every key it is not sent, so send only the changes: resending a loaded value
-+        // could put back a token that has since been renewed
-+        const parameters = Object.fromEntries(
-+            Object.entries(config).filter(([key, value]) => value !== loadedConfig[key])
-+        )
++        // Send only the changes: resending a loaded value could put back a token that has since
++        // been renewed
++        const parameters = changedValues(config, loadedConfig)
          updateRemoteMutation.mutate({ name: remoteName!, parameters })
 -    }, [config, updateRemoteMutation, remoteName])
 +    }, [config, loadedConfig, updateRemoteMutation, remoteName])
  
      const isPending = remoteConfigQuery.isPending || backendsQuery.isPending
      const isError = remoteConfigQuery.isError || backendsQuery.isError
-@@ -171,6 +188,7 @@
+@@ -171,6 +187,7 @@
  
      return (
          <PageWrapper>
@@ -617,8 +765,9 @@ diff --git a/src/rclone/config.ts b/src/rclone/config.ts
 new file mode 100644
 --- /dev/null
 +++ b/src/rclone/config.ts
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,104 @@
 +import rclone from '@/rclone/client'
++import { normaliseToken } from '@/rclone/values'
 +
 +// One question from rclone's config state machine (fs.ConfigOut in rclone). rclone asks these for
 +// OAuth logins and for backend setup steps, such as choosing a OneDrive drive.
@@ -653,22 +802,6 @@ new file mode 100644
 +// `rclone authorize` instead. config_* keys are not saved to the config file, so they are sent on
 +// every call: rclone can reach the browser question later, after "refresh the token?" on an edit.
 +const HEADLESS_PARAMETERS = { config_is_local: 'false' }
-+
-+// rclone saves a pasted token as typed, and a line break in it corrupts the config file: after a
-+// restart rclone reads each extra line as a key of its own. A token from `rclone authorize` is
-+// JSON (or a base64 blob) with no spaces in its values, so drop line breaks and spaces, and write
-+// JSON back on one line.
-+export function normaliseToken(value: string) {
-+    const compact = value.replace(/\s+/g, '')
-+    for (const candidate of [value, compact]) {
-+        try {
-+            return JSON.stringify(JSON.parse(candidate))
-+        } catch {
-+            // not JSON in this form
-+        }
-+    }
-+    return compact
-+}
 +
 +async function configCall(
 +    path: '/config/create' | '/config/update',
@@ -736,4 +869,35 @@ new file mode 100644
 +    }
 +
 +    return true
++}
+diff --git a/src/rclone/values.ts b/src/rclone/values.ts
+new file mode 100644
+--- /dev/null
++++ b/src/rclone/values.ts
+@@ -0,0 +1,26 @@
++// Pure helpers for remote config values. No imports, so tests can load this file on its own.
++
++// rclone saves a pasted token as typed, and a line break in it corrupts the config file: after a
++// restart rclone reads each extra line as a key of its own. A token from `rclone authorize` is a
++// JSON object (or a base64 blob) with no whitespace in its values, so any whitespace came from the
++// paste: drop all of it, also inside values, and write the object back on one line.
++export function normaliseToken(value: string) {
++    const compact = value.replace(/\s+/g, '')
++    try {
++        const parsed: unknown = JSON.parse(compact)
++        if (parsed !== null && typeof parsed === 'object') {
++            return JSON.stringify(parsed)
++        }
++    } catch {
++        // a base64 blob, or not a token: rclone says if it cannot read it
++    }
++    return compact
++}
++
++// The values in config that differ from loaded. rclone keeps every key it is not sent, so sending
++// only these leaves the rest as they are on disk.
++export function changedValues(config: Record<string, unknown>, loaded: Record<string, unknown>) {
++    return Object.fromEntries(
++        Object.entries(config).filter(([key, value]) => value !== loaded[key])
++    )
 +}
