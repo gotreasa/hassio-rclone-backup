@@ -407,3 +407,42 @@ Both events will have the following attributes.
 | `error`       | The error message if the job failed. (optional)        |
 | `duration`    | The duration of the job as a human string, eg. `1m2s`. |
 | `seconds`     | The duration of the job in seconds.                    |
+
+---
+
+## Troubleshooting
+
+### OneDrive: `Personal Vault` fails with `ObjectHandle is Invalid`
+
+A job with a OneDrive Personal source fails, and the log shows lines like these:
+
+```text
+ERROR : Personal Vault: error reading source directory: couldn't list files: invalidRequest: invalidResourceId: ObjectHandle is Invalid
+NOTICE: Failed to copy: couldn't list files: invalidRequest: invalidResourceId: ObjectHandle is Invalid
+```
+
+The other folders are copied, but the job ends as failed and fires `rclone_backup.job_failed`.
+
+**Cause:** OneDrive Personal puts a locked folder named `Personal Vault` in the root of each account. While the vault is locked, OneDrive does not let rclone list it, and rclone cannot unlock it. Retries do not help. This is not a login problem: other folders on the same remote list correctly.
+
+**Fix:** exclude the vault from the job.
+
+```yaml
+jobs:
+  - name: Copy OneDrive to Drime
+    command: copy
+    source: onedrive:/
+    destination: drime:/Backup/OneDrive
+    exclude:
+      - "/Personal Vault/**"
+```
+
+The leading `/` matches only the vault in the root of the source, not other folders with the same name. You can keep the space in the name, because the app gives the value to rclone as written.
+
+*Note: files in the Personal Vault are not backed up. To back them up, move them out of the vault in OneDrive.*
+
+To test the filter on your computer before you change the job:
+
+```sh
+rclone copy onedrive:/ /path/to/test --exclude "/Personal Vault/**" --dry-run -v
+```
