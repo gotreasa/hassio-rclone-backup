@@ -381,6 +381,10 @@ No Jira item, by Gearoid's choice.
     re-serialise only a JSON object. Red on seed `20261142` before, green after.
   - Suite 28/28; Biome and `tsc -b` clean; patch reproduces the tested tree; full aarch64 image
     builds.
+  - [x] `3.5.0-poc.20` released 2026-11-06 on `8a181b0` (commits `3497ba6`, `a144ca2`): CI
+    https://github.com/gotreasa/hassio-rclone-backup/actions/runs/42206310429, Deploy (all five
+    arches) https://github.com/gotreasa/hassio-rclone-backup/actions/runs/42226948062; the aarch64
+    image pulls anonymously.
   - [ ] **Open, found while writing the flags property (pre-existing, upstream):** a `flags`
     value with a space is wrapped by `strconv.Quote` (`utils.go:62-63`), and with no shell rclone
     receives the quote marks: `--include="a b.txt"` matches nothing (checked on rclone 1.75.2).
