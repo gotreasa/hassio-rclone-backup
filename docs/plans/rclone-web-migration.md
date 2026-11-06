@@ -393,6 +393,39 @@ No Jira item, by Gearoid's choice.
     (only `True`/`False` lowercased): red on the old code for `a b.txt` and a value with quotes,
     green after; 60 s fuzz, about 3.9 million inputs, no failures; `go vet` and `gofmt` clean.
     Not yet released.
+- [ ] **Remove Serves** (Gearoid's go, 2026-11-06, steps 1 to 5). Route: working directly, no
+  independent review. Size M.
+  - Why (checked on rclone 1.74.3): serves listen on container loopback by default and the add-on
+    publishes no ports, so a serve cannot be reached from the LAN. Other HA apps (Samba, NFS Server,
+    FTP) can share a mount under `/share` or `/media` instead. Download in the file browser
+    (`RemotesDetails.tsx`) also starts a serve on `:0` and sends the browser to
+    `<HA host>:<random port>`, which is never published, so it cannot work under ingress.
+  - Found: `core/command command=serve` starts `rclone serve` as a child process with no login,
+    and the UI needs `core/command` for Settings (`cat` of the config). An nginx block on
+    `serve/*` is therefore a guardrail, not a security boundary.
+  - [x] 1. `rclone-web/no-serves.patch` (after the other two in the Dockerfile): no Serves nav
+    item, routes (`serves/*` redirects to `/`), footer message, Dashboard card (grid now 3
+    columns), or Download button and its serve code.
+  - [x] 2. nginx: `location ~ ^/(serve/|job/batch) { return 403; }`. **Beyond the agreed step:**
+    `job/batch` added because it starts a serve (`{"_path":"serve/start"}` returned
+    `http-5c3600c4` on rclone 1.74.3) and the UI never calls it. rclone method names are
+    case-sensitive (`/Serve/start` is a 404), so `~` is enough.
+  - [x] 3. Same patch: no self-update button and no hourly `selfupdate --check`.
+  - [x] 4. Docs: `DOCS.md` Serves row and section say "Removed" and point to a mount plus Samba,
+    NFS Server or FTP (links checked: 200, repos not archived; the FTP repo is now
+    `hassio-addons/app-ftp`); Explorer row notes no Download. Security review: new S6 and
+    recommendation 6. That file is untracked and marked private, so it is not committed.
+  - [x] 5. Tests.
+    - Playwright `e2e/no-serves.spec.ts` (3 tests): red on the old tree for the right reasons
+      (Serves link, Download button, `selfupdate --check` sent); the redirect check red with the
+      route removed; suite 31/31; Biome and `tsc -b` clean; the three patches at `--fuzz=0`
+      reproduce the tested tree. A plain request listener did not see `openapi-fetch` bodies; a
+      pass-through `page.route` does. A cold load of `/serves/new` is blank (relative assets, the
+      known deep-link limit), so the test navigates inside the app.
+    - `rclone_backup/tests/ingress-rig.sh` (new, tracked): HA-shaped network, nginx from the base
+      image with `apk` nginx, rclone at the Dockerfile pin. 16 checks. Red on the old
+      `nginx.conf`: 11 failures, 5 serves started (plain, `//`, `%73`, `%2F`, `job/batch`).
+      Green on the new one: 16/16.
 
 ## Findings
 

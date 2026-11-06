@@ -102,10 +102,10 @@ Not every tab works inside Home Assistant. This table shows what to expect:
 | Tab           | Status        | What to know                                                           |
 | ------------- | ------------- | ---------------------------------------------------------------------- |
 | **Dashboard** | Works         | Shows remotes, mounts, transfer counters and the rclone version.       |
-| **Explorer**  | Works, limits | You can only see the folders that the app's security profile allows.  |
+| **Explorer**  | Works, limits | You can only see the folders that the app's security profile allows. No **Download** button. |
 | **Remotes**   | Works, limits | A provider with a browser login needs rclone on a computer too.        |
 | **Mounts**    | Works, limits | Share on your network with Samba share. A restart removes it.          |
-| **Serves**    | Does not work | Serves did not work in testing. Do not use this tab.                   |
+| **Serves**    | Removed       | Use a mount and another app to share files. See **Serves** below.      |
 | **Transfers** | Works         | Copy and move files.                                                   |
 | **Settings**  | Works         | Needs `/homeassistant/rclone.conf` to exist before the app starts.     |
 
@@ -192,7 +192,23 @@ After each restart of the app or of Home Assistant, do steps 2 to 4 again.
 
 ### Serves
 
-Serves did not work in testing. Do not use this tab.
+**Removed.** A serve (for example WebDAV, FTP, SFTP, HTTP or DLNA) runs inside this app's container,
+and the app does not open network ports, so nothing on your network can connect to it. The Web UI
+has no Serves tab, and the app blocks the requests that start a serve.
+
+To share the files of a remote on your network, use a mount and another app:
+
+1. Mount the remote under `/share` or `/media`. See **Mounts**.
+2. Install an app that shares that folder, for example:
+   - **Samba share** (SMB), the official app.
+   - [NFS Server](https://github.com/sam-ward/nfs-ganesha-addon) (NFSv4), a community app.
+   - [FTP](https://github.com/hassio-addons/app-ftp) (FTP or FTPS), a community app.
+
+When this app restarts, the mount is gone and the other app shows an empty folder. Create the mount
+again, as described in **Mounts**.
+
+For the same reason, Explorer has no **Download** button: a download used a serve. The Web UI also
+does not offer to update rclone, because the app's image sets the rclone version.
 
 ### Settings
 
