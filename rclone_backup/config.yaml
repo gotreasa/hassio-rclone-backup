@@ -64,6 +64,7 @@ schema:
   no_rename: bool?
   no_unrename: bool?
   no_slugify: bool?
+  no_events: bool?
   log_level: list(debug|info|warning|error|fatal)?
 image: ghcr.io/gotreasa/hassio-rclone-backup/{arch}
 devices:
