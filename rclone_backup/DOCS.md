@@ -106,7 +106,7 @@ Not every tab works inside Home Assistant. This table shows what to expect:
 | **Remotes**   | Works, limits | A provider with a browser login needs rclone on a computer too.        |
 | **Mounts**    | Works, limits | Share on your network with another app. A restart removes it.          |
 | **Transfers** | Works         | Copy and move files.                                                   |
-| **Settings**  | Works         | Needs `/homeassistant/rclone.conf` to exist before the app starts.     |
+| **Settings**  | Works         | Needs the rclone config file to exist before the app starts.           |
 
 ### Explorer
 
@@ -148,7 +148,10 @@ To add a remote in the Web UI:
 2. Give the remote a short name without spaces, for example `mydrive`. You use this name in your jobs.
 3. Select the provider and fill in its settings. The [rclone docs](https://rclone.org/docs/) describe
    the settings for each provider.
-4. Save the remote. The Web UI writes it to `/homeassistant/rclone.conf`.
+4. Save the remote. The Web UI writes it to the file in `config_path`, by default
+   `/homeassistant/rclone.conf`. If you set `rclone_config`, the app writes that option to the file
+   again at each start, so a remote that you add in the Web UI is lost at the next restart. Add it to
+   `rclone_config` instead.
 5. If a job uses the new remote, restart the app.
 
 #### Providers with a browser login
@@ -251,12 +254,16 @@ Will run all jobs with no schedule defined immediately then exit. Designed for u
 **Option:** `config_path`
 
 The location of the rclone config file. The default is `/homeassistant/rclone.conf`. The file must
-exist before the app starts, see **Before you start**. `/config` is another name for
-`/homeassistant`, so older paths such as `/config/rclone.conf` still work.
+exist before the app starts, see **Before you start**. Inside this app, `/config` is the app's own
+configuration folder, not your Home Assistant configuration. If an older setup uses
+`/config/rclone.conf`, change it to `/homeassistant/rclone.conf`.
 
 **Option:** `rclone_config`
 
 This allows you to specify the rclone config from within the addon configuration, defining it will take precedence over the `config_path` option.
+
+The app writes this option to the rclone config file each time it starts. Changes that you make in
+the Web UI are lost at the next restart, so make them in this option.
 
 ```yaml
 jobs:
@@ -292,7 +299,7 @@ Disable sending completion and failure events to Home Assistant.
 
 **Option:** `sources`
 
-List of source locations in the format `remote:path` or for local paths just `path`, e.g. `/backup`, `/config`, `/share`, `/ssl`, `/media`.
+List of source locations in the format `remote:path` or for local paths just `path`, e.g. `/backup`, `/homeassistant`, `/share`, `/ssl`, `/media`.
 
 **Option:** `source`
 
@@ -357,7 +364,7 @@ List of files or folders to include, see [rclone filtering](https://rclone.org/f
 
 *Note: these filters are matching the backups name on the filesystem, if you have not disabled renaming then this will be a slugified version of the backups name, this will effectively replace all special characters with an `_` and remove duplicate underscores.*
 
-To preview the slugified names of your backups you can add a startup job like the following. It is a dry run to an empty folder, so it copies nothing, and the log shows each name as `<name>: Skipped copy as --dry-run is set`.
+To preview the slugified names of your backups you can add a startup job like the following. It is a dry run to `/tmp`, so it copies nothing, and the log shows each name as `<name>: Skipped copy as --dry-run is set`.
 
 ```yaml
 jobs:
@@ -365,7 +372,7 @@ jobs:
     name: Preview Backup Names
     sources:
       - /backup
-    destination: /tmp/preview
+    destination: /tmp
     flags:
       dry-run: true
 ```
@@ -380,7 +387,7 @@ Map of flags to give to the rclone command, see [rclone flags](https://rclone.or
 
 **Option:** `extra_flags`
 
-List of flags to give the rclone command, applied globally to all jobs. For use when `flags` option isn't working, the list of flags are appended directly to the rclone command.
+List of flags to give this job's rclone command only. For use when `flags` option isn't working, the list of flags are appended directly to the rclone command, after the global `flags` and `extra_flags`.
 
 ---
 

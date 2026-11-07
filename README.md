@@ -5,7 +5,7 @@ This pairs well with the custom integration [Auto Backup](https://github.com/jcw
 
 Rclone Backup can sync specific backups, e.g. backups starting with `AutoBackup*` to a cloud provider, and when that backup is deleted from Home Assistant it will be removed from the cloud provider as well.
 
-You can also directly sync your Home Configuration e.g. `/config`, `/share`, `/ssl`, `/media` to a cloud service or to another machine using SFTP. Rclone is smart and will only upload changed files.
+You can also directly sync your Home Configuration e.g. `/homeassistant`, `/share`, `/ssl`, `/media` to a cloud service or to another machine using SFTP. Rclone is smart and will only upload changed files.
 
 The app also supports monitoring rclone and configuring or exploring remotes through [rclone-web](https://github.com/rclone/rclone-web). Some Web UI tabs have limits inside Home Assistant. Before its first start, the app needs a working `rclone.conf` file, which you create and test on your computer first. Read **Before you start** and **Using the Web UI** in the app's **Documentation** tab first.
 
