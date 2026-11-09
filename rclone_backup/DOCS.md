@@ -348,15 +348,35 @@ The cron form has five fields (minute, hour, day of month, month, day of week). 
 
 **Option:** `command`
 
-The rclone command to run: `copy`, `sync` or `move`. Each one goes from the sources to the destination.
+The rclone command to run: `copy`, `sync`, `move` or `delete`. `copy`, `sync` and `move` go from the sources to the destination. `delete` acts on its sources only.
 
 | Command | What it does |
 | --- | --- |
 | `copy` | Copies new and changed files to the destination. It never deletes anything there. |
 | `sync` | Makes the destination match the source. Files at the destination that are not in the source are deleted, so backups that Home Assistant removes are removed from the destination too. |
 | `move` | Copies to the destination, then deletes the files from the source. Do not use it on `/backup` unless you want no local backups. |
+| `delete` | Deletes the files in the sources that match the job's filters, for example backups older than 14 days. |
 
-*Note: in version 3.5.0 and later, other commands such as `ls` or `delete` are not allowed in a job. If a saved job uses one, the app does not start until you change it. To look at or delete files once, use the Web UI.*
+The app checks each job when it starts. If a job is not correct, the app does not start, and the log names the job and the problem:
+
+- `copy`, `sync` and `move` need a `destination` or `destinations`.
+- `delete` must have no `destination` and no `destinations`.
+- Each `delete` source must be a remote, for example `hassbackup:`. To keep fewer backups in Home Assistant, set the retention in Home Assistant itself.
+- `delete` needs a filter, so that it does not delete every file. Use a `min-age` or `max-age` flag, `include` or `exclude`, or one of these filters in `extra_flags`.
+
+Example: delete backups older than 14 days from the remote, each day at 05:10.
+
+```yaml
+- name: Prune Old Backups
+  schedule: 10 5 * * *
+  command: delete
+  sources:
+    - 'hassbackup:'
+  flags:
+    min-age: 14d
+```
+
+*Note: in version 3.5.0 and later, other commands such as `ls` are not allowed in a job. If a saved job uses one, the app does not start until you change it. To look at files once, use the Web UI.*
 
 **Option:** `include`
 

@@ -61,11 +61,19 @@ jobs:
     # we can also disable google drive trash using flags
     flags:
       drive-use-trash: false
+  # In case we also want to prune backups that are older than 14 days
+  - name: Prune Old Backups
+    schedule: 10 5 * * *
+    command: delete
+    sources:
+      - 'hassbackup:'
+    flags:
+      min-age: 14d
 dry_run: false
 config_path: /homeassistant/rclone.conf
 ```
 
-A job's `command` is `copy`, `sync` or `move`. With `sync`, the cloud keeps the same backups as Home Assistant, so set how long backups are kept in Home Assistant itself.
+A job's `command` is `copy`, `sync`, `move` or `delete`. With `sync`, the cloud keeps the same backups as Home Assistant, so set how long backups are kept in Home Assistant itself. A `delete` job has no destination, its sources must be remotes, and it needs a filter such as `min-age`.
 
 ## Providers
 

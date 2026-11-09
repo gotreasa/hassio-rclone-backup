@@ -40,7 +40,7 @@ schema:
   jobs:
     - name: str?
       schedule: str?
-      command: list(copy|sync|move)
+      command: list(copy|sync|move|delete)
       source: str?
       sources:
         - str?

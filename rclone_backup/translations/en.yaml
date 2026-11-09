@@ -9,7 +9,8 @@ configuration:
         description: >-
           copy: add new and changed files to the destination. sync: make the
           destination match the source, deleting extra files there. move: copy,
-          then delete from the source.
+          then delete from the source. delete: delete files on a remote source;
+          set no destination, and set a filter such as the min-age flag.
       schedule:
         name: Schedule
         description: >-

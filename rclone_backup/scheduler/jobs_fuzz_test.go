@@ -118,7 +118,7 @@ func commandSchema(t testing.TB) []string {
 	return strings.Split(match[1], "|")
 }
 
-// FuzzCommandSchema only copy, sync and move are accepted as a job command
+// FuzzCommandSchema only copy, sync, move and delete are accepted as a job command
 func FuzzCommandSchema(f *testing.F) {
 	allowed := commandSchema(f)
 	for _, seed := range []string{"copy", "sync", "move", "ls", "delete", "Sync", " sync", "copy|sync", ""} {
@@ -126,7 +126,7 @@ func FuzzCommandSchema(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, command string) {
 		accepted := slices.Contains(allowed, command)
-		want := command == "copy" || command == "sync" || command == "move"
+		want := command == "copy" || command == "sync" || command == "move" || command == "delete"
 		if accepted != want {
 			t.Fatalf("command %q: accepted %v, want %v", command, accepted, want)
 		}

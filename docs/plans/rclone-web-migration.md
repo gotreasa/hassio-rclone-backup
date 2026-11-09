@@ -444,6 +444,32 @@ No Jira item, by Gearoid's choice.
     carefully. (4) No new test ran in CI: Gearoid chose option A, the rig runs as a CI job.
     Rejected: (9) dead code left in the patched tree, kept on purpose to keep the patch small and
     absent from the bundle. Left as nits: (10) the fixed 1 s wait in the Playwright spec.
+- [x] **`delete` back as a job command** (Gearoid's ask, 2026-11-09: bring back the README prune
+  example; no destination for `delete`; disable fields and check the YAML). Partly reverses the
+  2026-11-05 `copy|sync|move` decision; `ls` stays out. Route: working directly, no independent
+  review. Size S. Committed and released as `3.5.0-poc.24` on Gearoid's go (2026-11-09).
+  - **Limit:** fields cannot be disabled. The Supervisor options schema has per-field types only
+    (`str?`, `list(...)`, `match(...)`), nothing conditional, so the form cannot grey out
+    `destination` when `delete` is chosen. Instead the scheduler checks each job at start-up and
+    stops with `job '<name>' <problem>` (`CheckJob`, `main.go`), and the helper text says what
+    `delete` needs.
+  - **Rules (assumptions, Gearoid to confirm):** `copy`, `sync` and `move` need a destination;
+    `delete` has no `destination`/`destinations`; each `delete` source is a remote (no local
+    `/backup` pruning, HA's retention does that); `delete` needs a filter (`include`, `exclude`, or
+    a `min-age`, `max-age`, `min-size`, `max-size` or filter flag in `flags` or `extra_flags`) so it
+    never deletes every file.
+  - **Defect fixed on the way:** `CreateJob` with several sources ran `destination+source`, so with
+    no destination each source became its own destination (`rclone delete a: a:`, the same
+    `needs 1 arguments maximum`). Pairing moved to `JobRuns`, same order for the existing cases.
+  - **Change:** schema `list(copy|sync|move|delete)`; `jobs_test.go` (new, `TestCheckJob` 15
+    cases, `TestJobRuns` 6); `FuzzCommandSchema` model accepts `delete`; `translations/en.yaml`,
+    `DOCS.md` (table row, the start-up checks, prune example), README prune job restored.
+  - **Verified:** new tests red (build) before `JobRuns` existed, then green; `go vet` clean;
+    `go test ./...` passes, including `TestDocumentedCommands` against the restored README; 10 s
+    fuzz of `FuzzCommandSchema` and `FuzzBuildArgs` clean; both YAML files parse; rclone v1.76.0
+    `rclone delete hassbackup: --verbose --min-age=14d` on a scratch alias remote deleted a file
+    dated 2026-01-01 and kept a new one. **Not verified:** the add-on linter (CI), the dropdown
+    and a real `delete` job on HA.
 
 ## Findings
 
