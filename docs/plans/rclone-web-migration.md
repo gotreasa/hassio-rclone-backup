@@ -500,6 +500,36 @@ No Jira item, by Gearoid's choice.
     - **Verified:** `go test -count=1 ./...` passes; the YAML parses to `jobs: []`; the poc.24
       image started and stayed up with `jobs: []` (the Docker run above). **Not verified:** the
       add-on linter (CI) and a fresh install on HA.
+- [x] **Settings save fails** (fix committed with bump to `3.5.0-poc.26`, 2026-11-10; Gearoid's report on poc.25, 2026-11-10: Save Changes on the config
+  contents shows `Could not save settings: Failed to construct 'URL': Invalid base URL`; no
+  `/homeassistant/rclone.conf` yet). RCA by `nw-troubleshooter` (UNREVIEWED: its paired reviewer
+  did not run), key claims re-checked against source.
+  - **Cause (upstream, not our patches):** `src/rclone/client.ts:169` in rclone-web 1.2.0 has
+    `new URL(auth.url.replace(/^\//, ''), '/operations/uploadfile')`: the path is passed as the
+    *base*, which is never a valid absolute URL, so it throws before any request. Re-checked: the
+    line is in the pristine 1.2.0 tarball and on upstream `main` (2026-11-10); none of our three
+    patches touch it; Node throws `Invalid URL` for any first argument. Latest release 1.2.1 does
+    not fix it, so a bump will not help.
+  - **Missing rclone.conf: rejected as the cause.** The throw comes before any network call; the RCA
+    reproduced it with the file present, at `/` and under a sub-path, and on the unpatched upstream
+    build. With the fix, the save creates an absent file.
+  - **Proposed fix:** `new URL(`${auth.url}/operations/uploadfile`, window.location.href)`, as a
+    new 4th patch `settings-save.patch` (Dockerfile `COPY` and one `patch` line), with a Playwright
+    regression test `e2e/settings-save.spec.ts` (red without the fix, green with it, per the RCA).
+    Scratch tree: `$CLAUDE_JOB_DIR/tmp/rca-settings/`.
+  - **Decision (Gearoid, 2026-11-10):** a new 4th patch, kept apart so it can go upstream as is and
+    be dropped once upstream fixes it.
+  - **Change:** `rclone_backup/rclone-web/settings-save.patch` (the one-line fix and
+    `e2e/settings-save.spec.ts`); Dockerfile copies it and applies it after `no-serves.patch`.
+  - **Verified:** all four patches apply at `--fuzz=0` to a fresh 1.2.0 tarball; `biome check .`
+    clean (94 files); `tsc -b && vite build` pass; the new spec is red without the fix
+    (`getByText('Settings saved.')` not found) and green with it, from an absent config file; full
+    suite 32/32 on local rclone 1.76.0 with a scratch `RCLONE_CONFIG`; the Dockerfile `webui`
+    stage builds (aarch64) and its bundle has the fixed `new URL(...)`. **Not verified:** on HA
+    (rclone 1.74.3, real ingress, `/homeassistant` writable for the upload).
+  - [ ] Optional, Gearoid's call: report the bug and fix upstream to `rclone/rclone-web`.
+  - **Workaround:** add the first remote in **Remotes** → **Add New Remote** (rc `config/create`
+    creates the file).
 
 ## Findings
 
