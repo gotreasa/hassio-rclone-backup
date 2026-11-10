@@ -21,9 +21,7 @@ jobs:
     command: sync
     sources:
       - /backup
-    destination: 'google:/Backup/Home Assistant'
-    include:
-      - DailyBackup*
+    destination: 'google:Backup/Home Assistant'
     exclude: []
     flags: {}
 dry_run: false
@@ -38,9 +36,8 @@ to create this file. The Web UI creates it when you add your first remote.
 Every job names a remote. If a job names a remote that does not exist, the app stops when it starts,
 and you cannot open the Web UI. So add your remote in the Web UI first, and add your job after that.
 
-*Note: in version 3.5.0 and later, the app has no default job. If you never saved the
-**Configuration** tab and used the old default job **Sync Daily Backups**, that job is gone after the
-update. Add it again in step 3.*
+*Note: in version 3.5.0 and later, the app has no example job. The update does not change the jobs
+that you saved in the **Configuration** tab.*
 
 ### 1. Start the app
 
@@ -76,11 +73,11 @@ The Web UI saves the remote in `/homeassistant/rclone.conf`. This is the default
        sources:
          - /backup
        destination: 'mydrive:Backup/Home Assistant'
-       include:
-         - DailyBackup*
    ```
 
-   The name must match the name of the remote exactly, and a colon (`:`) must follow it.
+   The name must match the name of the remote exactly, and a colon (`:`) must follow it. The job has
+   no filter, so it copies every backup in `/backup`, including the backups of single apps. To copy
+   only some backups, see the `include` option.
 3. Set `dry_run` to `false`. The default is `true`. With `true`, rclone only shows in the log what it
    would do, and it does not copy or delete files. You can keep `true` for the first run, check the
    log, and then change it to `false`.
@@ -124,15 +121,22 @@ Explorer shows the files that rclone can see. The app runs rclone under an
 [AppArmor](https://contributors.home-assistant.io/apps/guides/security/#apparmor) security profile, which
 allows only these folders:
 
-| Folder           | What it contains                         | Access     |
-| ---------------- | ---------------------------------------- | ---------- |
-| `/homeassistant` | Your Home Assistant configuration        | Read/write |
-| `/backup`        | Home Assistant backups                   | Read/write |
-| `/share`         | The shared folder                        | Read/write |
-| `/media`         | The media folder                         | Read/write |
-| `/addons`        | Local apps                               | Read/write |
-| `/addon_configs` | The configuration folders of other apps  | Read/write |
-| `/ssl`           | Certificates                             | Read-only  |
+| Folder           | What it contains                                   | Access     |
+| ---------------- | -------------------------------------------------- | ---------- |
+| `/homeassistant` | Your Home Assistant configuration                  | Read/write |
+| `/backup`        | Home Assistant backups                             | Read/write |
+| `/share`         | The shared folder                                  | Read/write |
+| `/media`         | The media folder                                   | Read/write |
+| `/addons`        | Local apps                                         | Read/write |
+| `/addon_configs` | The configuration folders of other apps            | Read/write |
+| `/config`        | This app's own configuration folder                | Read/write |
+| `/tmp`           | Temporary files                                    | Read/write |
+| `/ssl`           | Certificates                                       | Read-only  |
+| `/data`          | This app's options, including `rclone_config`      | Read-only  |
+
+*Note: `/data/options.json` holds the app's options. If you set `rclone_config`, the file contains
+the passwords and tokens for your accounts in plain text, and anyone who can open the Web UI can read
+them in Explorer.*
 
 Explorer shows other folders in the top level, for example `/etc` or `/root`, but you cannot open them.
 When you try, Explorer shows an error and AppArmor blocks the access. The block is expected. To see
@@ -217,8 +221,14 @@ the mount again.
 
 ### Settings
 
-Settings shows the path and the contents of the rclone config file, and lets you change global rclone
-options.
+Settings shows the path and the contents of the rclone config file, and lets you edit the contents.
+Saving the contents creates the file if it does not exist. If you set `rclone_config`, the app writes
+that option to the file again at each start, so make the change in the option instead.
+
+Settings also lets you change rclone options, for example a bandwidth limit. These options apply only
+to the rclone that runs the Web UI, for example to a copy that you start in **Transfers**. They do not
+apply to your jobs, because each job starts its own rclone command. A restart of the app also resets
+them. To set an option for your jobs, use the `flags` or `extra_flags` option.
 
 ## Configuration
 
@@ -323,6 +333,9 @@ A list of locations to write to in the format `remote:path` or for local paths j
 
 A slightly cleaner way to specify a single destination, this option will override the `destinations` option.
 
+*Note: on SFTP, `remote:path` starts in your home folder on the server, and `remote:/path` starts at
+the root of the server.*
+
 > **Multiple Sources**
 >
 > When there are multiple sources each source will be backed-up to the destination under `destination/source`
@@ -374,23 +387,43 @@ The app checks each job when it starts. If a job is not correct, the app does no
 - Each `delete` source must be a remote, for example `hassbackup:`. To keep fewer backups in Home Assistant, set the retention in Home Assistant itself.
 - `delete` needs a filter, so that it does not delete every file. Use a `min-age` or `max-age` flag, `include` or `exclude`, or one of these filters in `extra_flags`.
 
-Example: delete backups older than 14 days from the remote, each day at 05:10.
+Example: keep 14 days of backups on the remote. The `copy` job uploads backups each day at 04:10,
+and the `delete` job removes the backups older than 14 days at 05:10.
 
 ```yaml
-- name: Prune Old Backups
-  schedule: 10 5 * * *
-  command: delete
-  sources:
-    - 'hassbackup:'
-  flags:
-    min-age: 14d
+jobs:
+  - name: Copy Backups
+    schedule: 10 4 * * *
+    command: copy
+    sources:
+      - /backup
+    destination: 'hassbackup:'
+    flags:
+      max-age: 14d
+  - name: Prune Old Backups
+    schedule: 10 5 * * *
+    command: delete
+    sources:
+      - 'hassbackup:'
+    flags:
+      min-age: 14d
 ```
+
+Use the same age in both jobs. Without `max-age`, the `copy` job uploads again each backup that the
+`delete` job removed, for as long as Home Assistant keeps it. Do not add a `delete` job for a remote
+that a `sync` job writes to: `sync` already removes the backups that Home Assistant removes, and the
+`delete` job removes backups that the next `sync` uploads again.
 
 *Note: in version 3.5.0 and later, other commands such as `ls` are not allowed in a job. If a saved job uses one, the app does not start until you change it. To look at files once, use the Web UI.*
 
 **Option:** `include`
 
 List of files or folders to include, see [rclone filtering](https://rclone.org/filtering).
+
+Without `include`, a job on `/backup` copies every backup: the full backups and the backups of single
+apps. The names of the backups depend on the Home Assistant version and on who made the backup, and a
+later version can change them. So look at the names before you add a filter (see the preview job
+below), and check the log after a Home Assistant update.
 
 *Note: these filters are matching the backups name on the filesystem, if you have not disabled renaming then this will be a slugified version of the backups name, this will effectively replace all special characters with an `_` and remove duplicate underscores.*
 
@@ -476,8 +509,8 @@ The other folders are copied, but the job ends as failed and fires `rclone_backu
 jobs:
   - name: Copy OneDrive to Drime
     command: copy
-    source: onedrive:/
-    destination: drime:/Backup/OneDrive
+    source: 'onedrive:'
+    destination: drime:Backup/OneDrive
     exclude:
       - "/Personal Vault/**"
 ```
@@ -489,5 +522,5 @@ The leading `/` matches only the vault in the root of the source, not other fold
 To test the filter on your computer before you change the job:
 
 ```sh
-rclone copy onedrive:/ /path/to/test --exclude "/Personal Vault/**" --dry-run -v
+rclone copy onedrive: /path/to/test --exclude "/Personal Vault/**" --dry-run -v
 ```
