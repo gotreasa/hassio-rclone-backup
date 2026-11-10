@@ -470,6 +470,36 @@ No Jira item, by Gearoid's choice.
     `rclone delete hassbackup: --verbose --min-age=14d` on a scratch alias remote deleted a file
     dated 2026-01-01 and kept a new one. **Not verified:** the add-on linter (CI), the dropdown
     and a real `delete` job on HA.
+- [x] **First run in the Web UI** (Gearoid, 2026-11-09: remotes are fixed, so the docs should say the
+  Web UI works rather than "create `rclone.conf` on a computer first"). Route: working directly, no
+  independent review. Size S. Committed with the no-default-job change below, bump to
+  `3.5.0-poc.25` (2026-11-10, on Gearoid's go).
+  - **Corrects the 2026-11-02 note** ("an empty file plus a local-only job is not enough to
+    start"). Checked on the released `3.5.0-poc.24` aarch64 image under Docker, no Supervisor, no
+    `rclone.conf`: no jobs, starts and stays up; a local-only job, starts and runs; the default
+    `google:` job, stops with `remote 'google:' does not exist` (the scheduler's halt takes the
+    app down, `services.d/scheduler/finish`); rc `config/create` with no file creates
+    `/homeassistant/rclone.conf`; a restart with a job on that remote starts and runs it.
+  - **Change:** `DOCS.md` "Before you start" is now: remove the default job, start, add the remote
+    in the Web UI (browser-login providers still paste a token from `rclone authorize`), add the
+    job, restart; the computer route is a short "If you already have an rclone.conf" part.
+    `config_path` no longer says the file must exist first; README intro to match.
+  - **Not verified:** on HA itself (removing the only job in the options form, an empty `jobs:`
+    list through Supervisor validation); the Settings tab with no file at start (its row still says
+    the file must exist before the app starts).
+  - **No default job** (Gearoid, 2026-11-10, after 6 upstream issues showed the default `google:`
+    job halting fresh installs: jcwillox #28, #32, #37, #49, #134, #135; #49 and #134 open). The
+    job dates from the 2020-12-09 initial commit, when every schema field was required (inferred,
+    no commit says why). `config.yaml` default is now `jobs: []`; the docs' step "remove the
+    default job" is gone, and a note covers the one quiet break below.
+    - **Checked in Supervisor source** (`supervisor/apps/options.py` on `main`, fetched
+      2026-11-10): an empty list passes `_nested_validate_list` (loops over no items); the `jobs`
+      key must stay, as a missing list-of-dict key fails `_check_missing_options`. `apps/app.py`
+      merges options with lists on `override`: saved jobs are kept, but an install that never
+      saved its options loses the old default job on update, with no error.
+    - **Verified:** `go test -count=1 ./...` passes; the YAML parses to `jobs: []`; the poc.24
+      image started and stayed up with `jobs: []` (the Docker run above). **Not verified:** the
+      add-on linter (CI) and a fresh install on HA.
 
 ## Findings
 

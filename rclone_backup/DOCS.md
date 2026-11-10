@@ -7,8 +7,8 @@ The app has two parts:
 - **Jobs** that you write in the app configuration. They copy or sync files on a schedule.
 - **The Web UI**, where you add remotes, browse files and see what rclone is doing.
 
-If this is your first time, do the steps in **Before you start** first. The app stops
-on its first start if you skip them.
+If this is your first time, do the steps in **Before you start**. The app starts with no jobs, so you
+can add a remote in the Web UI first, and then a job that uses it.
 
 A typical configuration looks like this. It uses a remote called `google`, so add that remote before
 you use it (see **Before you start**). If a job uses a remote that does not exist, the app stops when
@@ -32,63 +32,73 @@ config_path: /homeassistant/rclone.conf
 
 ## Before you start
 
-The app reads your remotes (your storage accounts) from a file called `rclone.conf`. Every job names a
-remote. If a job names a remote that is not in the file, the app stops when it starts, and you cannot
-open the Web UI. The default job uses a remote called `google`. So you need a working `rclone.conf`
-before the first start. An empty file is not enough.
+The app reads your remotes (your storage accounts) from a file called `rclone.conf`. You do not need
+to create this file. The Web UI creates it when you add your first remote.
 
-The best way is to create and test the file on your computer, then copy it to Home Assistant. Many
-providers, for example Google Drive and iCloud, open a page in your browser to log you in. rclone on
-your computer opens that page for you.
+Every job names a remote. If a job names a remote that does not exist, the app stops when it starts,
+and you cannot open the Web UI. So add your remote in the Web UI first, and add your job after that.
 
-### 1. Create and test the config on your computer
+*Note: in version 3.5.0 and later, the app has no default job. If you never saved the
+**Configuration** tab and used the old default job **Sync Daily Backups**, that job is gone after the
+update. Add it again in step 3.*
 
-1. Install rclone on your laptop or desktop computer. See [Install rclone](https://rclone.org/install/).
-2. Run `rclone config` and follow the questions to add a remote. Give it a short name without spaces,
-   for example `mydrive`. If the provider needs a browser login, rclone opens the page for you.
-3. Test the remote. Run `rclone lsd mydrive:` (use your remote's name). It lists the top-level
-   folders of the remote. If you see an error, fix the remote before you continue.
-4. Run `rclone config file`. It shows where the file is on your computer.
+### 1. Start the app
 
-For more ways to set up a remote for a machine without a browser, see
-[rclone remote setup](https://rclone.org/remote_setup/).
+1. Start the app. It has no jobs yet, so it only starts the Web UI.
+2. Select **Open Web UI**. You do not need a username or password. The **Dashboard** shows no
+   remotes yet.
 
-### 2. Copy the config to Home Assistant
+### 2. Add a remote in the Web UI
 
-1. If you do not have a way to edit files in Home Assistant, install an app that can. The
-   [File editor](https://my.home-assistant.io/redirect/supervisor_addon/?addon=core_configurator) app
-   is the usual choice.
-2. Open the file editor and go to the top-level folder, where `configuration.yaml` is. This app sees
-   that folder as `/homeassistant`.
-3. Create a new file called `rclone.conf`.
-4. On your computer, open the file from step 1, copy all of its contents, paste them into the new file
-   and save it.
+1. Select **Remotes** → **Add New Remote** and follow the steps in **Remotes** (under **Using the Web
+   UI**). Give the remote a short name without spaces, for example `mydrive`.
+2. If the provider logs you in through a page in your browser, for example Google Drive, OneDrive or
+   Box, the Web UI asks you to run `rclone authorize` on a computer and paste the result. See
+   **Providers with a browser login**.
+3. Test the remote. In **Remotes**, select the remote. The Web UI lists its top-level folders. If you
+   see an error, edit the remote and fix it before you continue.
 
-The full path of the file is now `/homeassistant/rclone.conf`. This is the default value of the
+The Web UI saves the remote in `/homeassistant/rclone.conf`. This is the default value of the
 `config_path` option, so you do not need to change that option.
 
 *Note: the file contains the passwords and tokens for your accounts. Keep it as safe as a password.*
 
-*Note: if you prefer not to create a file, you can paste the same contents into the
-`rclone_config` option instead.*
-
-### 3. Set up your jobs and start the app
+### 3. Add your jobs and restart the app
 
 1. Go to the app's **Configuration** tab.
-2. In each job, use the name of your remote. For example, change
-   `destination: google:/Backup/Home Assistant` to `destination: 'mydrive:Backup/Home Assistant'`.
-   The name must match the name in `rclone.conf` exactly, and a colon (`:`) must follow it.
+2. Add a job that uses the name of your remote. For example:
+
+   ```yaml
+   jobs:
+     - name: Sync Daily Backups
+       schedule: 10 4 * * *
+       command: sync
+       sources:
+         - /backup
+       destination: 'mydrive:Backup/Home Assistant'
+       include:
+         - DailyBackup*
+   ```
+
+   The name must match the name of the remote exactly, and a colon (`:`) must follow it.
 3. Set `dry_run` to `false`. The default is `true`. With `true`, rclone only shows in the log what it
    would do, and it does not copy or delete files. You can keep `true` for the first run, check the
    log, and then change it to `false`.
-4. Start the app.
-5. If the app stops, open its **Log** tab. The log names the remote that it did not find. Correct the
-   name in the **Configuration** tab, or add the remote to `rclone.conf`, and start the app again.
-6. Select **Open Web UI**. You do not need a username or password. The **Dashboard** shows how many
-   remotes the app found.
+4. Restart the app.
+5. If the app stops, open its **Log** tab. The log names the job and the problem, for example a remote
+   that it did not find. Correct the job in the **Configuration** tab and start the app again.
 
 The app reads and checks the jobs only when it starts. After you change a job or add a remote that a
 job uses, restart the app.
+
+### If you already have an rclone.conf
+
+If you already use rclone on a computer, you can use its remotes. Run `rclone config file` on the
+computer to find the file. Then copy its contents to `/homeassistant/rclone.conf` with an app that can
+edit files, for example the
+[File editor](https://my.home-assistant.io/redirect/supervisor_addon/?addon=core_configurator) app.
+Or paste the contents into the `rclone_config` option. A remote that you add in the Web UI is then
+lost at the next restart, see **Remotes**.
 
 ## Using the Web UI
 
@@ -253,8 +263,8 @@ Will run all jobs with no schedule defined immediately then exit. Designed for u
 
 **Option:** `config_path`
 
-The location of the rclone config file. The default is `/homeassistant/rclone.conf`. The file must
-exist before the app starts, see **Before you start**. Inside this app, `/config` is the app's own
+The location of the rclone config file. The default is `/homeassistant/rclone.conf`. If the file does
+not exist, the Web UI creates it when you add the first remote, see **Before you start**. Inside this app, `/config` is the app's own
 configuration folder, not your Home Assistant configuration. If an older setup uses
 `/config/rclone.conf`, change it to `/homeassistant/rclone.conf`.
 
