@@ -116,7 +116,7 @@ Not every tab works inside Home Assistant. This table shows what to expect:
 | **Remotes**   | Works, limits | A provider with a browser login needs rclone on a computer too.        |
 | **Mounts**    | Works, limits | Share on your network with another app. A restart removes it.          |
 | **Transfers** | Works         | Copy and move files.                                                   |
-| **Settings**  | Works         | Needs the rclone config file to exist before the app starts.           |
+| **Settings**  | Works         | Saving the config contents creates the file if it does not exist.      |
 
 ### Explorer
 
