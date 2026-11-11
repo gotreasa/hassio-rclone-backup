@@ -42,8 +42,7 @@ that you saved in the **Configuration** tab.*
 ### 1. Start the app
 
 1. Start the app. It has no jobs yet, so it only starts the Web UI.
-2. Select **Open Web UI**. You do not need a username or password. The **Dashboard** shows no
-   remotes yet.
+2. Select **Open Web UI**. The **Dashboard** shows no remotes yet.
 
 ### 2. Add a remote in the Web UI
 
