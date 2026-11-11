@@ -525,8 +525,13 @@ No Jira item, by Gearoid's choice.
     clean (94 files); `tsc -b && vite build` pass; the new spec is red without the fix
     (`getByText('Settings saved.')` not found) and green with it, from an absent config file; full
     suite 32/32 on local rclone 1.76.0 with a scratch `RCLONE_CONFIG`; the Dockerfile `webui`
-    stage builds (aarch64) and its bundle has the fixed `new URL(...)`. **Not verified:** on HA
-    (rclone 1.74.3, real ingress, `/homeassistant` writable for the upload).
+    stage builds (aarch64) and its bundle has the fixed `new URL(...)`.
+  - **Verified on HA (Gearoid, 2026-11-10, poc.26):** Settings saves the config contents and
+    creates `/homeassistant/rclone.conf` when it does not exist; adding a remote in Remotes also
+    works. A first try right after the release failed; the retest passed. Not investigated: most
+    likely the app was still on poc.25 or the browser had the old UI cached (the poc.26 image's
+    bundle has the fix, and nginx neither blocks `operations/uploadfile` nor limits body size).
+    `DOCS.md` Settings row no longer says the file must exist before the app starts.
   - [ ] Optional, Gearoid's call: report the bug and fix upstream to `rclone/rclone-web`.
   - **Workaround:** add the first remote in **Remotes** → **Add New Remote** (rc `config/create`
     creates the file).
