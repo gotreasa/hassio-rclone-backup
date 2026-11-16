@@ -535,6 +535,46 @@ No Jira item, by Gearoid's choice.
   - [ ] Optional, Gearoid's call: report the bug and fix upstream to `rclone/rclone-web`.
   - **Workaround:** add the first remote in **Remotes** → **Add New Remote** (rc `config/create`
     creates the file).
+- [x] **iCloud remote: sign-in fails, and Photos cannot be chosen** (fix on branch
+  `fix/icloud-remote-config`, bump to `3.5.0-poc.28`, 2026-11-16; Gearoid's report on poc.27,
+  2026-11-16). Route: worked directly (size S), no independent review. RCA by `nw-troubleshooter`
+  (UNREVIEWED: its paired reviewer did not run), key claims re-checked against source.
+  - **Symptom 1:** Add New Remote, type iCloud Drive and Photos: `authSRPComplete: sign in failed:
+    401`, Apple code `-20101` ("Check the account information you entered and try again").
+  - **Cause 1 (our patch, same gap upstream):** `configCall` in `src/rclone/config.ts`
+    (`oauth-headless.patch`) sent `opt` without `obscure: true`. rclone then guesses: it calls
+    `obscure.Reveal` on each password field and, if that succeeds, saves the value as typed
+    (`fs/config/config.go:578-584`, rclone 1.74.3). A plain password of only `[A-Za-z0-9_-]`, at
+    least 22 characters, length mod 4 not 1, passes that test; the backend later "reveals" it into
+    garbage, and Apple rejects the SRP proof. Upstream rclone-web 1.2.0 has the same gap
+    (`src/pages/RemotesNew.tsx:112`).
+  - **Not verified:** that Gearoid's password has that shape. A wrong or app-specific password gives
+    the same `-20101`; rclone's iCloud docs say app-specific passwords are refused. Rejected as the
+    cause, with evidence in the RCA: the rclone version, 2FA under `nonInteractive` (a 2FA account
+    gets 409 and a question, not 401), ADP or web access off (they fail later, not at SRP), and
+    nginx or ingress changing the request.
+  - **Symptom 2:** the `service` field shows only `drive`; iCloud Photos cannot be found.
+  - **Cause 2 (upstream UI):** `OptionField` renders examples as a `<datalist>`, and the field
+    starts filled with the default (`RemotesNew.tsx:284`). Browsers only suggest entries that match
+    the text in the field, so `photos` never shows. Workaround on poc.27: clear the field.
+  - **Change:** `oauth-headless.patch`: `obscure: true` in `configCall` and
+    `e2e/remotes-password.spec.ts`. New 5th patch `option-choices.patch` (same reason as
+    `settings-save.patch`: upstream code, kept apart so it can go upstream as is): a menu button
+    beside every field with examples lists every choice; typing a custom value still works; plus
+    `e2e/option-choices.spec.ts`. Dockerfile copies and applies it after `settings-save.patch`.
+    Rejected from the RCA: the e2e `opt` lines it named (`:68`, `:89`, `:162`) are the tests' own
+    set-up calls with no password, so they stay.
+  - **Verified:** both new specs red on the four-patch tree for the reported reasons (the password
+    saved as typed; no way to reach `photos`), green with the fix; the free-text guard test green
+    on both; full suite 35/35 on local rclone 1.76.0 with a scratch `RCLONE_CONFIG`; `biome check
+    .` clean (96 files); `tsc -b && vite build` pass; all five patches apply at `--fuzz=0` to a
+    fresh 1.2.0 tarball and reproduce the tested tree; the Dockerfile `webui` stage builds
+    (aarch64, Alpine GNU `patch`) and its bundle has `obscure:!0` and the `Choices for` button.
+  - **Not verified:** a real iCloud sign-in (needs Gearoid's account and 2FA device). Note: rclone
+    echoes the whole request, including the plain password, in the error toast; this change does
+    not alter that.
+  - [ ] Gearoid: test `poc.28` on HA (create the iCloud remote, pick `photos`, complete 2FA).
+  - [ ] Optional, Gearoid's call: offer both fixes upstream to `rclone/rclone-web`.
 
 ## Findings
 
