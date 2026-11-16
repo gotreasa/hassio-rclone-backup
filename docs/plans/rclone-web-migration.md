@@ -537,8 +537,9 @@ No Jira item, by Gearoid's choice.
     creates the file).
 - [x] **iCloud remote: sign-in fails, and Photos cannot be chosen** (fix on branch
   `fix/icloud-remote-config`, bump to `3.5.0-poc.28`, 2026-11-16; Gearoid's report on poc.27,
-  2026-11-16). Route: worked directly (size S), no independent review. RCA by `nw-troubleshooter`
-  (UNREVIEWED: its paired reviewer did not run), key claims re-checked against source.
+  2026-11-16). Route: worked directly (size S); one ad hoc adversarial review after the fact (below,
+  not recorded in nwdes). RCA by `nw-troubleshooter` (UNREVIEWED: its paired reviewer did not run),
+  key claims re-checked against source.
   - **Symptom 1:** Add New Remote, type iCloud Drive and Photos: `authSRPComplete: sign in failed:
     401`, Apple code `-20101` ("Check the account information you entered and try again").
   - **Cause 1 (our patch, same gap upstream):** `configCall` in `src/rclone/config.ts`
@@ -573,6 +574,39 @@ No Jira item, by Gearoid's choice.
   - **Not verified:** a real iCloud sign-in (needs Gearoid's account and 2FA device). Note: rclone
     echoes the whole request, including the plain password, in the error toast; this change does
     not alter that.
+  - **Adversarial review (`nw-software-crafter-reviewer`, 2026-11-16): APPROVED WITH NOTES.** It
+    rebuilt the five-patch tree (35/35), watched both new specs fail on the four-patch tree, and
+    reproduced the raw save and the fix with its own `rclone rcd` probe. Findings, each re-checked:
+    - **F1 (medium), accepted, mitigated:** `obscure: true` obscures a pasted, already obscured
+      value a second time (reviewer's rc probe), so the remote fails to sign in with no hint. Edit is
+      safe only because `changedValues` (`values.ts:22`, `RemotesEdit.tsx:174`) never resends an
+      untouched value. **Decision (Gearoid, 2026-11-16):** keep the flag; add a hint. Every password
+      field now says "Type the password itself, not an obscured value from rclone.conf. rclone
+      obscures it when it saves." (`optionField.passwordHint`, English only; other languages fall
+      back to it, `i18n.ts:32-37`), linked with `aria-describedby`.
+    - **F2 (low), confirmed, no change:** passwords answered through config questions (jottacloud
+      `legacy_password`, sugarsync, seafile 2FA) travel as `opt.Result`, which `obscure` does not
+      touch. The flag is not a guarantee that every password is obscured.
+    - **F3 (low), confirmed, no change:** rclone's error reply carries the plain password into the
+      toast (above). Worth an upstream issue.
+    - **F4 (low), no change:** the menu lists every example (s3 `endpoint` has 385); it scrolls, and
+      the kept `<datalist>` still filters as the user types.
+    - **F5 (cosmetic), fixed:** the menu was wider than a phone screen. Worse than reported on the s3
+      `provider` menu: x 5 to 365 on a 360 px screen, page `scrollWidth` 365. Now at most
+      `calc(100vw - 2rem)`, help text wraps.
+    - Rejected from the reviewer's open list: "Docker `webui` stage and GNU `patch` not verified"
+      was already verified (above).
+    - Not done by the reviewer: an end-to-end Edit-page double-obscure probe (its locators failed).
+  - **Found while fixing F5:** fields with examples showed two arrows on hover, Chrome's own datalist
+    arrow and the menu button. Chrome forces that arrow's `display`, so it is now zero-width and
+    transparent. **Verified by screenshot only:** Chrome's `getComputedStyle` does not support that
+    pseudo-element (it returns the input's own style), so no test can see it.
+  - **Verified (review round):** 2 new specs (hint as the password field's accessible description;
+    menu and page inside 360 px) red on the previous build for the reported reasons (description
+    `""`; right edge 362.26 px) and green with the fix; full suite 37/37; Biome clean (96 files);
+    `tsc -b && vite build` pass; five patches at `--fuzz=0` reproduce the tested tree; the `webui`
+    stage builds with Alpine GNU `patch` and its bundle has the hint, the width cap and the arrow
+    rules.
   - [ ] Gearoid: test `poc.28` on HA (create the iCloud remote, pick `photos`, complete 2FA).
   - [ ] Optional, Gearoid's call: offer both fixes upstream to `rclone/rclone-web`.
 
