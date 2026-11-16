@@ -1,0 +1,160 @@
+diff --git a/e2e/option-choices.spec.ts b/e2e/option-choices.spec.ts
+new file mode 100644
+--- /dev/null
++++ b/e2e/option-choices.spec.ts
+@@ -0,0 +1,45 @@
++import { expect, test } from '@playwright/test'
++import { getTestEnv, loginUrl } from './helpers'
++
++// An option with examples starts filled with its default. A <datalist> then only suggests entries
++// that match that text, so the other choices (iCloud Photos here) cannot be found.
++test('every choice of an option with examples can be picked, even with a default filled in', async ({
++    page,
++}) => {
++    await page.goto(loginUrl())
++    const { appUrl } = getTestEnv()
++    await page.waitForURL(appUrl + '/')
++    await page.goto(appUrl + '/remotes')
++    await page.getByRole('button', { name: 'Add New Remote' }).first().click()
++    await page.getByPlaceholder('Select type or search').fill('iCloud')
++    await page
++        .getByRole('option', { name: /^iCloud Drive/ })
++        .first()
++        .click()
++
++    const service = page.getByLabel('service', { exact: true })
++    await expect(service).toHaveValue('drive')
++
++    await page.getByRole('button', { name: 'Choices for service' }).click()
++    await expect(page.getByRole('menuitem', { name: /^drive/ })).toBeVisible()
++    await page.getByRole('menuitem', { name: /^photos/ }).click()
++
++    await expect(service).toHaveValue('photos')
++})
++
++test('a value that is not one of the examples can still be typed', async ({ page }) => {
++    await page.goto(loginUrl())
++    const { appUrl } = getTestEnv()
++    await page.waitForURL(appUrl + '/')
++    await page.goto(appUrl + '/remotes')
++    await page.getByRole('button', { name: 'Add New Remote' }).first().click()
++    await page.getByPlaceholder('Select type or search').fill('iCloud')
++    await page
++        .getByRole('option', { name: /^iCloud Drive/ })
++        .first()
++        .click()
++
++    const service = page.getByLabel('service', { exact: true })
++    await service.fill('custom-value')
++    await expect(service).toHaveValue('custom-value')
++})
+diff --git a/src/components/OptionField.tsx b/src/components/OptionField.tsx
+--- a/src/components/OptionField.tsx
++++ b/src/components/OptionField.tsx
+@@ -1,6 +1,13 @@
+-import { useId, useMemo } from 'react'
++import { ChevronDownIcon } from 'lucide-react'
++import { type ChangeEvent, useId, useMemo } from 'react'
+ import { Checkbox } from '@/components/ui/checkbox'
+ import {
++    DropdownMenu,
++    DropdownMenuContent,
++    DropdownMenuItem,
++    DropdownMenuTrigger,
++} from '@/components/ui/dropdown-menu'
++import {
+     Field,
+     FieldContent,
+     FieldDescription,
+@@ -8,6 +15,12 @@
+     FieldTitle,
+ } from '@/components/ui/field'
+ import { Input } from '@/components/ui/input'
++import {
++    InputGroup,
++    InputGroupAddon,
++    InputGroupButton,
++    InputGroupInput,
++} from '@/components/ui/input-group'
+ 
+ export type OptionFieldOption = {
+     Name: string
+@@ -119,24 +132,64 @@
+         )
+     }
+ 
++    const inputProps = {
++        id: fieldId,
++        name: option.Name,
++        type: option.IsPassword ? 'password' : 'text',
++        value: normalizeText(value),
++        onChange: (event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value),
++        placeholder: helpTitle,
++        required: option.Required,
++        list: hasExamples ? listId : undefined,
++        autoComplete: 'off',
++        autoCapitalize: 'off',
++        autoCorrect: 'off',
++        spellCheck: false,
++    }
++
+     return (
+         <Field>
+             <FieldLabel htmlFor={fieldId}>{option.Name}</FieldLabel>
+-            <Input
+-                id={fieldId}
+-                name={option.Name}
+-                type={option.IsPassword ? 'password' : 'text'}
+-                value={normalizeText(value)}
+-                onChange={(event) => onChange(event.target.value)}
+-                placeholder={helpTitle}
+-                required={option.Required}
+-                list={hasExamples ? listId : undefined}
+-                autoComplete="off"
+-                autoCapitalize="off"
+-                autoCorrect="off"
+-                spellCheck={false}
+-            />
+             {hasExamples ? (
++                // A <datalist> only suggests entries that match the text already in the field, and
++                // the field starts with the default, so the menu lists every choice. Typing a value
++                // that is not an example stays possible.
++                <InputGroup>
++                    <InputGroupInput {...inputProps} />
++                    <InputGroupAddon align="inline-end">
++                        <DropdownMenu>
++                            <DropdownMenuTrigger
++                                render={
++                                    <InputGroupButton
++                                        size="icon-xs"
++                                        aria-label={`Choices for ${option.Name}`}
++                                    />
++                                }
++                            >
++                                <ChevronDownIcon />
++                            </DropdownMenuTrigger>
++                            <DropdownMenuContent align="end" className="w-auto">
++                                {examples.map((example, index) => (
++                                    <DropdownMenuItem
++                                        key={`${example.Value ?? 'example'}-${index}`}
++                                        onClick={() => onChange(example.Value ?? '')}
++                                    >
++                                        <span className="font-mono">{example.Value}</span>
++                                        {example.Help ? (
++                                            <span className="text-muted-foreground">
++                                                {example.Help.split('\n')[0]}
++                                            </span>
++                                        ) : null}
++                                    </DropdownMenuItem>
++                                ))}
++                            </DropdownMenuContent>
++                        </DropdownMenu>
++                    </InputGroupAddon>
++                </InputGroup>
++            ) : (
++                <Input {...inputProps} />
++            )}
++            {hasExamples ? (
+                 <datalist id={listId}>
+                     {examples.map((example, index) => (
+                         <option
