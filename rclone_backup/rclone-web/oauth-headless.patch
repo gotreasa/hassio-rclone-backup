@@ -222,6 +222,47 @@ new file mode 100644
 +    const stored = await page.evaluate(() => JSON.stringify(window.localStorage))
 +    expect(stored).not.toContain('test-access')
 +})
+diff --git a/e2e/remotes-password.spec.ts b/e2e/remotes-password.spec.ts
+new file mode 100644
+--- /dev/null
++++ b/e2e/remotes-password.spec.ts
+@@ -0,0 +1,36 @@
++import { execFileSync } from 'node:child_process'
++import { expect, test } from '@playwright/test'
++import { getTestEnv, loginUrl, rcloneRC } from './helpers'
++
++// A plain password that rclone can also "reveal" as if it were already obscured: only base64url
++// characters, at least 22 of them. Without obscure:true, rclone guesses it is obscured, saves it as
++// typed, and the backend later sends garbage to the provider (iCloud answers 401 -20101).
++const PLAIN = 'Abcdefghijklmnopqrstuv'
++
++test.afterEach(async () => {
++    await rcloneRC('/config/delete', { name: 'test-crypt' })
++})
++
++test('a new remote saves a plain password obscured, whatever its shape', async ({ page }) => {
++    await page.goto(loginUrl())
++    const { appUrl } = getTestEnv()
++    await page.waitForURL(appUrl + '/')
++    await page.goto(appUrl + '/remotes')
++    await page.getByRole('button', { name: 'Add New Remote' }).first().click()
++    await page.getByPlaceholder('Remote name (for your reference)').fill('test-crypt')
++    await page.getByPlaceholder('Select type or search').fill('crypt')
++    await page
++        .getByRole('option', { name: / crypt$/ })
++        .first()
++        .click()
++    await page.getByLabel('remote', { exact: true }).fill('/tmp/test-crypt')
++    await page.getByLabel('password', { exact: true }).fill(PLAIN)
++    await page.getByRole('button', { name: 'Create Remote' }).click()
++
++    await expect(page).toHaveURL(/\/remotes$/)
++    const config = (await rcloneRC('/config/get', { name: 'test-crypt' })) as Record<string, string>
++    expect(config.password).not.toBe(PLAIN)
++    expect(execFileSync('rclone', ['reveal', config.password], { encoding: 'utf8' }).trim()).toBe(
++        PLAIN
++    )
++})
 diff --git a/e2e/values-fuzz.spec.ts b/e2e/values-fuzz.spec.ts
 new file mode 100644
 --- /dev/null
@@ -765,7 +806,7 @@ diff --git a/src/rclone/config.ts b/src/rclone/config.ts
 new file mode 100644
 --- /dev/null
 +++ b/src/rclone/config.ts
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,108 @@
 +import rclone from '@/rclone/client'
 +import { normaliseToken } from '@/rclone/values'
 +
@@ -812,7 +853,11 @@ new file mode 100644
 +        params: {
 +            query: {
 +                ...query,
-+                opt: JSON.stringify({ nonInteractive: true, ...opt }),
++                // obscure: the form sends passwords as typed. Without it rclone guesses, and a
++                // plain password that happens to decode as obscured is saved raw, then "revealed"
++                // into garbage when used (iCloud answers 401 -20101). Edit sends changed values
++                // only, so a stored, already obscured password is never sent back here.
++                opt: JSON.stringify({ nonInteractive: true, obscure: true, ...opt }),
 +            },
 +        },
 +    })
