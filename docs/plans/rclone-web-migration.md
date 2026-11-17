@@ -1,0 +1,593 @@
+# Plan: migrate the web GUI from rclone-webui-react to rclone-web
+
+## Goal
+
+`rclone/rclone-webui-react` is archived. Upstream recommends `rclone/rclone-web`. Bundle rclone-web
+in the add-on image instead, and prove it works behind Home Assistant ingress.
+
+## Sizing
+
+Size S (nWave `nw-auto` §6): a dependency swap against a settled upstream decision. Direct work plus
+an independent reviewer, not the full DES step loop. Research by `nw-researcher`.
+
+## Steps
+
+- [x] Read the current wiring: `rclone_backup/Dockerfile:41-58`, `rootfs/etc/services.d/rclone/run`.
+- [x] Build the baseline image (aarch64) locally: builds.
+- [x] Research rclone-web: release asset, layout, sub-path support, API discovery (`nw-researcher`).
+- [x] Patch rclone-web for sub-path serving (`rclone_backup/rclone-web/base-path.patch`).
+- [x] Change the Dockerfile, the run script, the Renovate annotation and the docs.
+- [x] Build the new image (aarch64) and test it behind a simulated ingress proxy: 7/7 pass.
+- [ ] Cross-build armhf locally: blocked, see Blockers. CI on the PR builds all five arches.
+- [x] Independent review of the diff (`nw-platform-architect-reviewer`): conditionally approved, no
+  blockers. See Review below.
+- [x] Fix review findings 1, 2 and 4. Final patch: biome, `tsc -b` and `vite build` pass locally.
+- [ ] Rebuild the image with the final patch and rerun the browser check (now 9 steps, including an
+  ingress token change). Blocked on Docker, see Blockers.
+- [x] Commit on the branch: `0b86699` (2026-10-30, signed after a 1Password approval). Push and
+  open a draft PR only on Gearoid's go.
+- [ ] Optional, Gearoid's call: offer the base-path patch upstream to `rclone/rclone-web`.
+
+## Proof of concept on a fork (Gearoid, 2026-10-30)
+
+A POC only: nothing goes to `jcwillox/hassio-rclone-backup` (no push access there anyway).
+No Jira item, by Gearoid's choice.
+
+- [x] Fork: https://github.com/gotreasa/hassio-rclone-backup (public). Fork setting changed:
+  default workflow token `read` to `write`, because `deploy.yaml` pushes to GHCR and declares no
+  `permissions:` block.
+- [x] Fork-only commit `chore(poc): ...`: `config.yaml` image `ghcr.io/gotreasa/...`, version
+  `3.5.0-poc.1`, POC name; `repository.json` name and URL. **Drop this commit before any upstream PR.**
+- [x] Push to the fork as `feat-rclone-web-poc`. Gearoid enabled the fork's workflows by hand (GitHub
+  keeps a new fork's workflows off until the owner confirms in the Actions tab).
+- [x] CI on `c2535f1` (manual dispatch): lint plus all five arch builds pass, which closes the
+  "cross-arch builds unverified" gap. https://github.com/gotreasa/hassio-rclone-backup/actions/runs/40987625260
+- [x] Prerelease `3.5.0-poc.1` on `c2535f1`; Deploy pushed all five images.
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/40988170855
+- [x] Images are public with no manual step: an anonymous manifest pull of
+  `ghcr.io/gotreasa/hassio-rclone-backup/<arch>:3.5.0-poc.1` returns HTTP 200 for all five arches.
+- [x] Ingress hardening (Gearoid's go, 2026-10-30): HA's ingress guide says "Only accept connections
+  from 172.30.32.2. Deny everything else." rclone now listens on `127.0.0.1:5572`; nginx on 8099
+  allows only `172.30.32.2` and proxies to it; `--rc-allow-origin` (a CORS header, not access
+  control) dropped. Tested on an HA-shaped network (`172.30.32.0/23`, proxy at `172.30.32.2`, a
+  second container at `172.30.33.10`): browser check 9/9 through the proxy; the second container
+  gets 403 on 8099 and a refused connection on 5572. Negative control: the `3.5.0-poc.1` image
+  answers that container with 200. This run also verifies the final base-path patch. POC version
+  bumped to `3.5.0-poc.2`.
+- [x] `3.5.0-poc.2` released on the fork from `6d3b843`: CI (all five arches)
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41046546465 and Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41046817141 pass; all five images
+  pull anonymously.
+- [x] Confine the Web GUI (Gearoid's go, 2026-10-30: `/homeassistant` and `/backup` only).
+  rclone has no flag for this (checked `rclone help flags` in 1.74.3), and a UI-only limit is
+  bypassed by `config/create` alias remotes or `core/command`, so it is done at the OS level: the
+  GUI's rclone runs under `unshare` with private mount and PID namespaces, the other HA folders
+  lazily unmounted, a tmpfs over `/run/s6/container_environment`, and `SUPERVISOR_TOKEN` removed
+  from its environment. The scheduler stays in the normal namespace. Needs `util-linux-misc`
+  (busybox `unshare` has no `--kill-child`).
+  - Found while testing: util-linux `unshare --fork` ignores SIGTERM, so s6 could not restart or
+    stop the GUI (an early restart check passed vacuously; replaced by one that requires a new
+    PID). Fixed with `down-signal` SIGHUP and `--kill-child=SIGTERM`.
+  - Found while testing, pre-existing: `rclone/finish` treated exit 143 (SIGTERM, sent by s6 on
+    every stop or restart) as a crash, so a GUI restart halted the whole add-on. Fixed by treating
+    143 as a normal stop.
+  - Rig (full s6 `/init`, fake Supervisor, HA folders mounted with markers, `SYS_ADMIN`): 28/28
+    isolation checks, including bypass attempts (alias remote, `/proc/1/root`, s6 env store,
+    `core/command cat` of environ), a token sweep of the GUI's namespaces, the scheduler still
+    seeing every folder, and a real restart; browser check 9/9; `docker stop` 3 s, exit 0.
+  - POC version bumped to `3.5.0-poc.3`.
+- [x] `3.5.0-poc.3` released on the fork from `35e5d87`: CI (all five arches)
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41051713708 and Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41051961397 pass; all five images
+  pull anonymously.
+- [x] **Confinement reverted** (Gearoid, 2026-10-30): "The changes for poc.3 didn't help and can be
+  reverted." Reasoning agreed: only HA admins reach the GUI after `poc.2`, and they can already
+  read every file through other add-ons, so confining the Explorer guards against trusted users.
+  `git revert` of `1e22bb6` as `9b01107` (no history rewrite). Kept `5ea7874` (the `finish` fix),
+  because it fixes a pre-existing bug: a GUI service restart halted the add-on. Checked on the
+  reverted build in the full s6 rig: other add-on 403, rclone on loopback only, a real GUI restart
+  (new PID) with the add-on still running and no crash warning, browser check 9/9, `docker stop`
+  exit 0 in 4 s. POC version bumped to `3.5.0-poc.4`.
+- [x] `3.5.0-poc.4` released on the fork from `4355687`. CI passed (all five arches):
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41058081726. Deploy attempt 1
+  failed at job setup on armhf ("Unable to resolve action `actions/cache@v5.1.0`, unable to find
+  version"), and fail-fast cancelled the rest. Classified as a transient GitHub action-resolution
+  failure: both pinned releases exist (`actions/cache` v5.1.0 published 2026-06-26,
+  `docker/login-action` v4.2.0 published 2026-05-22), the other jobs in the same run resolved
+  them, and the workflow was unchanged since three green Deploy runs. Rerun of the failed and
+  cancelled jobs (attempt 2) passed for all five:
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41058362157. All five images pull
+  anonymously.
+- [x] Custom AppArmor profile (Gearoid's go, 2026-10-30): `rclone_backup/apparmor.txt`, and
+  `apparmor: true` on `config.yaml:73` (was `false`, set in `1362bde` for FUSE mounts). Built on the
+  S6 overlay example in HA's app security guide. rclone (Web GUI server and scheduled jobs) runs in
+  a stricter child profile: the mapped folders (`ssl` and `data` read-only), FUSE mount and
+  umount, network, its own config and caches, and no other programs. Expected rating 7/8
+  (5 + 2 ingress + 1 custom profile − 1 SYS_ADMIN); badge green.
+  - **Ships in `complain` mode**, per HA's method: AppArmor logs what it would block instead of
+    blocking. The badge is green in complain mode too, so it does not prove enforcement.
+  - Not testable here: Docker Desktop's kernel has no AppArmor (`docker info` security options:
+    seccomp, cgroupns). `apparmor_parser` 3.1.7 compiles it (`--skip-kernel-load`); a broken copy
+    is rejected, so the check is real.
+  - POC version bumped to `3.5.0-poc.5`.
+  - CI's add-on linter rejected `apparmor: true` ("'apparmor' should be removed, it uses a default
+    value"). HA's default is `true`, so Gearoid chose to remove the line: same behaviour, the
+    profile is still loaded. Lint warnings about armhf, armv7 and i386 (deprecated since HA
+    2025.12) are pre-existing and out of scope.
+- [x] `3.5.0-poc.5` released on the fork from `a52f19e`: CI (lint and all five arches)
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41063182842 and Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41063489997 pass; all five images
+  pull anonymously; the branch serves `apparmor.txt` with `complain` on both profiles.
+- [x] `poc.5` installed on Gearoid's instance. The first attempts (13:32:09, 13:32:40) failed with
+  "An unknown error occurred with app e2fe72d5_rclone_backup": HA offers the update as soon as the
+  branch's `config.yaml` changes, but the aarch64 image was only pushed at 13:33:09. Gearoid
+  confirmed the timing was the cause. **Process: wait for Deploy to finish before updating.**
+- [x] Question answered (2026-10-30): what removing `privileged: SYS_ADMIN` would do. Only
+  `rclone mount` breaks (Web GUI Mounts tab, `mount/mount`, any job with `command: mount`):
+  with SYS_ADMIN a FUSE mount works; without it rclone's mount daemon exits with code 1 and no
+  mount exists. Everything else passes without it in the full s6 rig (403 for other add-ons, real
+  GUI restart, browser 9/9, clean stop). Rating would go from 7 to 8. Not changed; Gearoid's call.
+- [x] Experiment `poc.6` (Gearoid's ask, 2026-10-30): `poc.5` minus `privileged: SYS_ADMIN` only
+  (`ce81918`; `/dev/fuse` and the profile unchanged), to check on real HA that only mounts break.
+  Released from a staging branch first, and `feat-rclone-web-poc` moved only after Deploy, so HA
+  could not offer the update before the images existed. **Result on Gearoid's instance: the mount
+  works on `poc.5` and fails on `poc.6`.** Decision: keep SYS_ADMIN; `ce81918` reverted as
+  `a153263`.
+- [x] Deprecated map types (Supervisor log, 2026-10-30: "uses legacy map type 'addons'; use
+  'local_apps' instead", and the same for `addon_config` and `all_addon_configs`). Deprecated in
+  Supervisor 2026.07 (`supervisor/apps/validate.py:263`). The new types mount elsewhere by default
+  (`local_apps` at `/local_apps`, `all_app_configs` at `/app_configs`; HA configuration reference),
+  so `1fd9570` uses the long form with `path:` to keep `/addons` and `/addon_configs`
+  (`read_only: false`, as the default is true). `app_config` already mounts at `/config`.
+  - Upstream note: the new types need Supervisor 2026.07 or later; older Supervisors would
+    probably reject the config. **Researched 2026-10-30 (Gearoid: "a massive problem"):**
+    - The new types first exist in **Supervisor 2026.07.1** (2026-07-08). `MappingType` read at
+      every release tag from 2025.07.1 to 2026.10.5: none of the three in 2026.07.0 or earlier,
+      all three from 2026.07.1 (`supervisor/apps/const.py`, earlier `supervisor/addons/const.py`).
+    - On 2026.07.0 or earlier, `vol.Coerce(MappingType)` (`apps/validate.py:448`) rejects
+      `local_apps`, and the store logs "Can't read config.yaml" and skips the app
+      (`store/data.py:200-205`): **it disappears from the store, so no install and no update.**
+      What happens to an already-installed copy is not verified.
+    - The Supervisor updates itself by default (`supervisor/validate.py:196`
+      `ATTR_AUTO_UPDATE default=True`; `supervisor.py:271-289`), so exposure is users who
+      turned auto-update off, or whose Supervisor cannot update. Not measured.
+    - The old names have **no removal date**: HA's reference says "Older names are still
+      accepted, with a warning", and `apps/validate.py` only logs for them. They work on every
+      Supervisor, old and new.
+    - A gate does not help: `homeassistant:` sets a minimum Core version, not Supervisor, and an
+      old Supervisor fails while parsing, before any gate applies.
+    - **Decision (Gearoid, 2026-10-30): back to the old names.** Reverted `087c4f0` and `1fd9570`
+      as `a5085e4` and `28be77e`; `map` is identical to `main` again. Kept the linter bump
+      `6b79ef6` (v2.21.1 accepts the old names; both linter schemas validate the config).
+      Cost: three warnings in the Supervisor log. Revisit when HA announces a removal date for
+      the old names. POC version bumped to `3.5.0-poc.8`.
+- [x] `poc.8` released (CI https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41092738278,
+  Deploy https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41093602654); tracked branch
+  moved only after all five images pulled anonymously.
+- [x] **AppArmor enforce mode** (Gearoid, 2026-11-02: "Move AppArmor out of complain mode, so that I
+  can test it out"). Chose to test by enforcing rather than read a complain-mode log first; the
+  risk is that a missing rule blocks something, fixed forward in a later version. `9f11a3e`
+  removes `complain` and first fills gaps found by reading what the add-on does: `/ r` (Explorer
+  root listing), Go runtime files (`/sys/fs/cgroup`, CPU, huge pages, `/proc` meminfo/cpuinfo/stat),
+  `/etc/fuse.conf` and unix sockets for `fusermount`, file override capabilities for jobs copying
+  files other apps own, zoneinfo, and `signal,` in the outer profile (HA's template only sends).
+  `apparmor_parser` 3.1.7 compiles it; a broken copy is rejected. Not enforceable locally (no
+  AppArmor in Docker Desktop), so Gearoid's instance is the test. POC version `3.5.0-poc.9`.
+- [ ] Gearoid: test `poc.9` in enforce mode; send any `apparmor="DENIED"` lines naming
+  `rclone_backup`. First results (2026-11-02): `/etc`, `/root` and `/mnt` denied, as designed,
+  which shows enforcement works. `job/status: job not found` and `"drime" refers to a local folder`
+  are not AppArmor (no permission error). Mount under enforcement not yet tested.
+- [x] Research (Gearoid, 2026-11-02): mounts, network sharing and USB on HA OS (`nw-researcher`,
+  key claims re-checked against source):
+  - `/share` and `/media` are bound into apps and Core with `rslave` propagation
+    (`supervisor/docker/app.py:582,593`, `docker/homeassistant.py:143,152`): host mounts flow in,
+    app mounts never flow out. **An `rclone mount` is only visible inside this app**, wherever it
+    is mounted. Corrects my earlier advice to mount into `/share` "because it is shared".
+    **Wrong in practice (Gearoid's test, 2026-11-02):** mounts at `/share/Drime` and `/media/Drime`
+    were both shared on the network through the Samba share app. The source reading did not
+    predict real behaviour; the mechanism was not investigated further.
+  - Sharing a folder: the Samba share app, which shares a fixed list only
+    (`samba/config.yaml:58`: config, addons/local_apps, addon_configs/app_configs, ssl, share,
+    backup, media); `allow_hosts` defaults to private ranges.
+  - USB storage: Supervisor 2026.10.1 added a "Local disk" mount type (PR #7137, merged
+    2026-10-07; `mounts/disks.py` absent in 2026.10.0, present from 2026.10.1). Mounts into
+    `/media/<name>` or `/share/<name>` on the host, so Samba can share it. Filesystems: btrfs,
+    exfat, ext2/3/4, f2fs (HAOS 18.3+), ntfs (ntfs3), vfat (`mounts/const.py:27-41`). Which HA
+    release shows it in the UI: not confirmed (docs only on rc.home-assistant.io).
+  - Network storage (Settings → System → Storage) is inbound only (NFS/CIFS from another machine).
+  - POC version bumped to `3.5.0-poc.7`. Gearoid to check the Supervisor log shows no legacy map
+    warnings, and that `/addons` and `/addon_configs` still show their contents.
+  - CI lint failed on the first attempt (run 41083760301: "is not valid under any of the given
+    schemas"). Two causes, both checked against the linter's `src/config.schema.json`:
+    `frenck/action-addon-linter@v2.21.0` does not know the new types (v2.21.1 does), and its
+    schema accepts a `map` of only strings or only objects, never a mix. Fixed by bumping the
+    linter to v2.21.1 (`6b79ef6`) and writing every entry in long form (`087c4f0`). Validated
+    locally with `jsonschema`: v2.21.1 VALID, v2.21.0 still invalid.
+- [ ] Gearoid: run `poc.5` and use every feature (Web GUI, a job, a mount), then read the audit log
+  for `apparmor="ALLOWED"` entries naming `rclone_backup`. Add what is missing, then remove
+  `complain` in `poc.6`.
+- [x] Docs for the Web UI limits (Gearoid's test results, 2026-11-02): new screenshot; `DOCS.md`
+  gains "Before you start" (create `/homeassistant/rclone.conf` with a file editor; replace the
+  default `google:` job before the first start, because `scheduler/main.go:209-215` stops the app
+  when a job names a missing remote) and "Using the Web UI" (per-tab status; Explorer and AppArmor;
+  Remotes; Mounts steps and limits; Serves does not work; Settings needs the file). Pedagogy review
+  by `gsmith-pedagogy-reviewer` (Sage): NEEDS_REVISION, then APPROVED (`2f05f17`).
+  - Gearoid's answers (2026-11-02), now in the docs: Remotes works, but providers that log in
+    through a browser page (Google Drive, iCloud) cannot be added in the Web UI, so the first-run
+    path is now "create and test `rclone.conf` on a computer, then copy it". An empty file plus a
+    local-only job is not enough to start. Transfers work (copy and move).
+  - Mounts: Gearoid says a mount stays inside the app, and one under `/share` or `/media` can be
+    shared with Samba. That conflicted with the research above; Gearoid then confirmed it on his
+    instance (`/share/Drime` and `/media/Drime` both work through Samba), so the docs stand.
+- [x] `3.5.0-poc.10` released (2026-11-02) so HA shows the new docs: bump `21a7aac`, released by
+  Gearoid from a staging branch; Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41462490486 passed; all five images
+  pull anonymously; `feat-rclone-web-poc` then moved to `b21bc4d` (same tree as `21a7aac`).
+  - A relative README screenshot path (`dd6afaa`) was reverted in `b21bc4d`: the info page reads
+    `rclone_backup/README.md`, a symlink, where `./example.png` does not exist. The screenshot
+    links stay on upstream `main`, so the fork shows the old picture until upstream merges.
+  - Installing `poc.10` showed "Unknown error, see supervisor logs" several times before it
+    succeeded. Cause not found: nothing in the Supervisor log; the Core log has
+    `Failed to call /store/reload -` with an empty message (other lines in that entry, `stats`
+    on a stopped app and an invalid ingress session, are routine).
+- [x] `3.5.0-poc.11` released (2026-11-02): in-page `#anchor` links in `DOCS.md` replaced by bold
+  section names (`133bca0`), because HA renders docs with `marked` 18 and no heading-id extension
+  (`home-assistant/frontend` `src/resources/markdown-worker.ts`, `package.json`), so headings get
+  no `id`. Bump `6e691a8`; Deploy
+  https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41471370545 passed; all five images
+  pull anonymously; then `feat-rclone-web-poc` moved to `6e691a8`.
+- [x] Experiment `poc.12` (Gearoid's ask, 2026-11-03): is the base-path patch needed on real HA?
+  `6944b0d` builds stock rclone-web 1.2.0 with no patch and no guard; released from its own branch
+  `experiment-no-patch` (CI run 41563271377 and Deploy run 41564055335 pass; all five images pull
+  anonymously) and installed as a separate app, so the main install was untouched. Reverted on the
+  POC branch as `20dfe43`. **Result on Gearoid's instance: the patch is needed.** This confirms the
+  local negative control on real HA (iframe, auth, HTTPS). Cleanup for Gearoid: uninstall the
+  experiment app and remove its repository; the `experiment-no-patch` branch can then be deleted.
+- [x] Browser-login remotes in the Web UI (Gearoid's report and choice, 2026-11-04: Box could not be
+  added). Route: working directly, no independent review ran. Size M.
+  - **Cause, reproduced on `rclone/rclone:1.74.3` headless:** rclone-web calls `config/create` with
+    no `opt`, so rclone auto-answers `config_is_local=true`, starts its auth server on the
+    container's `127.0.0.1:53682`, fails `xdg-open` and waits. The browser can never reach that
+    address, and Box redirects to `http://127.0.0.1:53682/` on the user's own machine. A second try
+    fails with `bind: address already in use` until the app restarts. **Edit has the same bug:**
+    `config/update` on a remote with a token auto-answers "refresh?" with yes. A pasted `token`
+    alone does not help (it still refreshes) unless `config_refresh_token=false` is also sent.
+  - **Fix (`e7b4c98`):** `rclone_backup/rclone-web/oauth-headless.patch`, after `base-path.patch`. New
+    and Edit call rclone with `opt.nonInteractive` and `config_is_local=false` (rclone does not save
+    `config_*` keys), then show each question rclone returns in a dialog and continue with
+    `opt.continue`/`state`/`result`. For OAuth, that question is "run `rclone authorize "box"` and
+    paste the result". Cancelling a new remote deletes it (rclone saves it before the questions).
+    Docs: `DOCS.md` Remotes section and table.
+  - **Verified:** biome, `tsc -b`, `vite build`; rclone-web's Playwright suite 15/15 (3 new tests:
+    create with pasted token, cancel removes the remote, edit asks before refresh) on local rclone
+    1.75.2 with a scratch `RCLONE_CONFIG`; both patches at `--fuzz=0` reproduce the tested tree
+    exactly; aarch64 image builds; headless Chromium against the built image (rclone 1.74.3,
+    add-on's rcd flags): create, save, edit and keep token, 0 page errors, no auth-server log line.
+    **Not verified:** a real Box login (the tests use a fake token) and follow-up questions after a
+    real token (for example the OneDrive drive choice); no red-before run of the new UI tests (the
+    unpatched UI would open a real browser on the Mac), the rc reproduction stands in for it.
+  - [x] `3.5.0-poc.13` pushed to `feat-rclone-web-poc` (`b412593`); CI passed on all five arches
+    (https://github.com/gotreasa/hassio-rclone-backup/actions/runs/41828364256); Gearoid released
+    it 2026-11-04 12:27.
+  - **Defect found by Gearoid on poc.13 (2026-11-04):** editing the Box remote and answering yes to
+    "refresh?" failed with `bind: address already in use`; the request continued
+    `*oauth-islocal` with `result: true`. Cause, reproduced on 1.74.3: `config_is_local=false` was
+    sent only on the first call, and rclone reaches the browser question in a later call on this
+    path, so the dialog offered it and `true` started the auth server. The "verified" list above
+    covered only answering no; that gap let it through. Fix: send `config_is_local=false` on every
+    continue call and never show that question. New Playwright test (edit, yes, paste token) is red
+    on the poc.13 patch and green on the fix (`57ed58a`); suite 16/16; patch reproduces the tested tree; built
+    aarch64 image (rclone 1.74.3) passes the same path with no auth-server log line. Needs poc.14.
+  - [ ] Gearoid: restart the app (a stuck auth server holds `127.0.0.1:53682` until then), then
+    release poc.14 and add a real Box remote on HA.
+  - [ ] Optional, Gearoid's call: offer the patch upstream to `rclone/rclone-web`.
+- [ ] Gearoid: add `https://github.com/gotreasa/hassio-rclone-backup#feat-rclone-web-poc` as an
+  add-on repository in HA, install, open the panel.
+- [x] Job config help (Gearoid's ask, 2026-11-04): a dropdown for `command` and help for `schedule`.
+  Route: working directly, no independent review ran. Size S.
+  - **Decision (Gearoid):** keep `command` as free text. A `list(...)` dropdown would reject any
+    saved job with an unlisted command, and the docs already use `sync`, `delete` and `ls`.
+  - **Change:** new `rclone_backup/translations/en.yaml` with a name and helper text for `jobs`,
+    `command` and `schedule`. HA shows it as text under the field; it has no info icon. The full
+    schedule table is in `DOCS.md` under `schedule`.
+  - **Verified:** the file matches Supervisor's `SCHEMA_APP_TRANSLATIONS` (`apps/validate.py:594`)
+    and the frontend's `configuration.jobs.fields.<field>` lookup; every table row parses with
+    gocron v2.21.2 `CronJob(.., false)`, and six fields and `@startup` fail; PyYAML rejects
+    unquoted `@hourly` and `*/15 * * * *`. Released as `3.5.0-poc.15` (`5b3d82f`, bump `8079bd8`).
+  - **Gearoid on poc.15 (2026-11-05):** the schedule helper text was a hard-to-read four-line
+    block. Cut to two short sentences; the YAML quoting tip is gone from the UI (the form quotes
+    for you) and stays in `DOCS.md` with the seconds note. Needs poc.16.
+- [x] Corrupt Box token after a paste (Gearoid's report, 2026-11-05): `rclone.conf` had the new
+  one-line `token` and, under it, leftover `token_type`/`refresh_token`/`expiry` lines. Route:
+  working directly; RCA by `nw-troubleshooter` (UNREVIEWED: its paired reviewer did not run),
+  re-checked against rclone v1.74.3 source and its reproduction files. Size S.
+  - **Cause:** the token dialog's textarea used `field-sizing-content`, so a token with no spaces
+    grew the field to about 5800 px, past the dialog, and pushed Continue off screen. Gearoid added
+    line breaks by hand to make it fit. The patch sent the value as typed, and rclone saves the
+    `*oauth-authorize` result unchecked (`lib/oauthutil/oauthutil.go:690-711`; its `\n` guard in
+    `fs/config/config.go:571-574` covers `parameters` only). After a restart, goconfig reads each
+    extra line as its own key; a later refresh replaces only `token`. A lone `}` line instead makes
+    the whole file fail to load (`could not parse line: }`), which stops every remote and job.
+  - **Fix (in `oauth-headless.patch`):** `normaliseToken` in `config.ts` drops whitespace and
+    writes JSON back on one line before the continue call; the textarea is `field-sizing-fixed`
+    with `break-all` and a height cap; the dialog fits the screen and scrolls; Enter submits.
+    Files already corrupt need the manual repair (delete the leftover lines).
+  - **Verified:** 3 new Playwright tests (wrapped paste saved on one line with no extra keys; a
+    600-character access token stays inside the dialog and Continue is fully on screen; Enter
+    submits) are red on the old patch for the reported reasons (field right edge 5801 px versus
+    dialog 886 px; a break inside a value left the dialog stuck) and green on the fix; suite 19/19
+    on local rclone 1.75.2 with a scratch `RCLONE_CONFIG`; Biome and `tsc -b` clean; both patches
+    apply at `--fuzz=0` to a fresh 1.2.0 tarball and reproduce the tested tree; the Dockerfile
+    `webui` stage builds. **Not verified:** on HA itself, and against rclone 1.74.3 in the UI path
+    (the RCA ran the rc calls on 1.74.3).
+  - [x] Released as `3.5.0-poc.17` (`e606d2c`, bump `5bf1d30`).
+  - **Defect found by Gearoid on poc.17 (2026-11-05):** the file was clean before (repaired by hand,
+    then the app updated), yet after Edit, refresh, paste it again had `expiry`, `refresh_token`
+    and `token_type` keys, with values from yesterday's broken token. RCA by `nw-troubleshooter`
+    (UNREVIEWED), re-checked against the code; it reproduced the file byte for byte, key order
+    included. **Cause (upstream rclone-web, inherited):** the query cache is saved to
+    `localStorage` for 30 days with a fixed buster (`src/lib/query.ts`), cleared only on login,
+    which add-on users never do. An Edit visit while the file was corrupt cached the junk keys;
+    the next Edit filled its form from that cache (`RemotesEdit.tsx`, filled once, first data) and
+    Save sent every key back. Rejected: rclone keeping a stale copy (it reloads the file on change,
+    `configfile.go:34-46`; no write on stop) and a second config copy in the add-on (`init.sh`
+    only exports `RCLONE_CONFIG`, unless the `rclone_config` option is set). Also: Edit resent the
+    cached token, and remote secrets sat in the HA origin's `localStorage`.
+  - **Fix (Gearoid's choice: fresh data, changed values only):** the remote config query has
+    `meta.persist: false` and `gcTime: 0`, and the persister skips such queries; buster `116-1`
+    drops caches saved by earlier builds; the Edit form fills only from a fetch after mount; Save
+    sends only values that differ from the loaded config.
+  - **Verified:** 2 new tests red on poc.17 for the reported reasons (stale `token_type` written
+    back; the token in `localStorage`) and green on the fix, plus a guard test that a changed
+    `client_id` is saved and the token kept; suite 22/22 on local rclone 1.75.2; Biome and
+    `tsc -b` clean; patch reproduces the tested tree from a fresh 1.2.0 tarball; `webui` stage
+    builds. **Not verified:** on HA.
+  - [ ] Gearoid: release poc.18, repair the Box section again, then edit and paste on HA.
+- [x] Job `command` limited to `copy|sync|move` (Gearoid, 2026-11-05, after `ls` and `delete` jobs
+  failed with `needs 1 arguments maximum`: the default job's `destination` was still set, and the
+  scheduler adds it whenever set, `jobs.go:58-63`). Reverses the 2026-11-04 "keep free text"
+  decision. Route: working directly, no review. Size S.
+  - **Decision (Gearoid):** jobs keep two locations in step; `ls` and `delete` are one-off work for
+    the Web UI. Trade-offs accepted: no scheduled prune of the remote (the README's `delete
+    min-age: 14d` example is gone; `sync` follows HA's own retention instead), a breaking change for
+    saved jobs with other commands (the app will not start until they are edited), and a further
+    drift from upstream.
+  - **Change:** `config.yaml` schema `command: list(copy|sync|move)` (a dropdown in each job);
+    helper text says what each command does; `DOCS.md` table, breaking note, and the slug-preview
+    example now a dry-run `copy` to an empty folder; README prune job removed.
+  - **Verified:** YAML parses; Supervisor's `RE_SCHEMA_ELEMENT` and `vol.In` (`apps/options.py:186`)
+    accept the three values and reject `ls`, `delete` and `Sync`; the frontend draws a `select`
+    for a list type inside the jobs object; a dry-run `copy` on rclone 1.75.2 logs `<name>: Skipped
+    copy as --dry-run is set` and creates nothing; the Web UI can delete files
+    (`RemotesDetails.tsx:323-327`). **Not verified:** the add-on linter (CI runs it) and the
+    dropdown on HA.
+  - Committed as `1e8da48` (signed); the poc.19 version bump went into the same commit.
+- [x] Fuzz tests (Gearoid's ask, 2026-11-05: token normaliser, scheduler args, Edit changed-only
+  diff, job command dropdown). Route: working directly, no review. Size M.
+  - **Go (`rclone_backup/scheduler/jobs_fuzz_test.go`, native `go test -fuzz`):** `BuildArgs`
+    pulled out of `RunJob` (same arguments, same order). `FuzzFlagMapToList` (one `--name[=value]`
+    argument per flag), `FuzzBuildArgs` (command, paths, filters and `--dry-run` in place),
+    `FuzzCommandSchema` and `TestDocumentedCommands` (read the real `config.yaml` schema with
+    Supervisor's `list()` rule, `apps/options.py:186`; every command in the defaults, `DOCS.md` and
+    `README.md` is accepted). 60 s each: about 8.4, 8.5 and 9.4 million inputs, no failures after
+    one model fix (underscores become dashes before the `--` check; corpus kept in `testdata/`).
+  - **rclone-web (`e2e/values-fuzz.spec.ts` in the patch):** seeded PRNG, no new dependency (no
+    lockfile change); replay with `FUZZ_SEED`/`FUZZ_RUNS`; 5000 runs by default, `node:assert` in
+    the loop (Playwright `expect` was far too slow). `normaliseToken` and `changedValues` moved to
+    `src/rclone/values.ts` (no imports). Six properties pass at 1,000,000 runs each.
+  - **Defect found by fuzzing (in poc.17 and poc.18):** `normaliseToken` tried the paste as typed
+    first, so a space inside a value (a line break turned into a space) left valid JSON and a token
+    with a space in it was saved. Fix: always strip all whitespace (token values have none), and
+    re-serialise only a JSON object. Red on seed `20261142` before, green after.
+  - Suite 28/28; Biome and `tsc -b` clean; patch reproduces the tested tree; full aarch64 image
+    builds.
+  - [x] `3.5.0-poc.20` released 2026-11-06 on `8a181b0` (commits `3497ba6`, `a144ca2`): CI
+    https://github.com/gotreasa/hassio-rclone-backup/actions/runs/42206310429, Deploy (all five
+    arches) https://github.com/gotreasa/hassio-rclone-backup/actions/runs/42226948062; the aarch64
+    image pulls anonymously.
+  - [x] **Found while writing the flags property (pre-existing, upstream):** a `flags` value with
+    a space was wrapped by `strconv.Quote` (`utils.go:62-63`), and with no shell rclone received
+    the quote marks: `--include="a b.txt"` matched nothing (checked on rclone 1.75.2; the unquoted
+    single argument matches). **Fixed (Gearoid's ask, 2026-11-06):** the quoting is removed, so
+    a value reaches rclone as written. `FuzzFlagMapToList` now requires `--name=value` exactly
+    (only `True`/`False` lowercased): red on the old code for `a b.txt` and a value with quotes,
+    green after; 60 s fuzz, about 3.9 million inputs, no failures; `go vet` and `gofmt` clean.
+    Not yet released.
+- [x] **Remove Serves** (Gearoid's go, 2026-11-06, steps 1 to 5). Route: working directly, no
+  independent review. Size M. Commits `05ffbba`, `b3455cf`, `ef3f957`. Full aarch64 image builds
+  (all three patches apply with Alpine's GNU `patch`); `nginx -t` passes in the image; the shipped
+  bundle has no `serve/*` or `selfupdate` code (only unused translation text). Not run: the full
+  s6 rig on the built image, and a real HA instance. Not yet released (needs a POC version bump).
+  - Why (checked on rclone 1.74.3): serves listen on container loopback by default and the add-on
+    publishes no ports, so a serve cannot be reached from the LAN. Other HA apps (Samba, NFS Server,
+    FTP) can share a mount under `/share` or `/media` instead. Download in the file browser
+    (`RemotesDetails.tsx`) also starts a serve on `:0` and sends the browser to
+    `<HA host>:<random port>`, which is never published, so it cannot work under ingress.
+  - Found: `core/command command=serve` starts `rclone serve` as a child process with no login,
+    and the UI needs `core/command` for Settings (`cat` of the config). An nginx block on
+    `serve/*` is therefore a guardrail, not a security boundary.
+  - [x] 1. `rclone-web/no-serves.patch` (after the other two in the Dockerfile): no Serves nav
+    item, routes (`serves/*` redirects to `/`), footer message, Dashboard card (grid now 3
+    columns), or Download button and its serve code.
+  - [x] 2. nginx: `location ~ ^/(serve/|job/batch) { return 403; }`. **Beyond the agreed step:**
+    `job/batch` added because it starts a serve (`{"_path":"serve/start"}` returned
+    `http-5c3600c4` on rclone 1.74.3) and the UI never calls it. rclone method names are
+    case-sensitive (`/Serve/start` is a 404), so `~` is enough.
+  - [x] 3. Same patch: no self-update button and no hourly `selfupdate --check`.
+  - [x] 4. Docs: `DOCS.md` Serves row and section say "Removed" and point to a mount plus Samba,
+    NFS Server or FTP (links checked: 200, repos not archived; the FTP repo is now
+    `hassio-addons/app-ftp`); Explorer row notes no Download. Security review: new S6 and
+    recommendation 6. That file is untracked and marked private, so it is not committed.
+    **Changed (Gearoid, 2026-11-06, after poc.21 was pushed):** the docs no longer mention Serves
+    or Download at all, because the UI hides them. The Serves row, the Serves section and the
+    Download note are gone; the list of apps that can share a mount moved to a new "Share a mount
+    on your network" part of Mounts.
+  - [x] 5. Tests.
+    - Playwright `e2e/no-serves.spec.ts` (3 tests): red on the old tree for the right reasons
+      (Serves link, Download button, `selfupdate --check` sent); the redirect check red with the
+      route removed; suite 31/31; Biome and `tsc -b` clean; the three patches at `--fuzz=0`
+      reproduce the tested tree. A plain request listener did not see `openapi-fetch` bodies; a
+      pass-through `page.route` does. A cold load of `/serves/new` is blank (relative assets, the
+      known deep-link limit), so the test navigates inside the app.
+    - `rclone_backup/tests/ingress-rig.sh` (new, tracked): HA-shaped network, nginx from the base
+      image with `apk` nginx, rclone at the Dockerfile pin. 16 checks. Red on the old
+      `nginx.conf`: 12 failures (corrected from 11 after review), 5 serves started (plain, `//`,
+      `%73`, `%2F`, `job/batch`). Green on the new one: 16/16.
+  - [x] **Adversarial review** (Gearoid's ask, 2026-11-06): a fresh `general-purpose` agent with
+    no context, read-only. No blockers or majors; 13 more bypass spellings all 403. Each finding
+    re-checked against source. Fixed (Gearoid's go): (1) the security review's table and S1 still
+    described the pre-poc.2 setup; (2) DOCS and the `05ffbba` message said nothing on the network
+    can reach a serve, but other add-ons can; (3) the nginx comment pointed at a DOCS note that
+    did not exist; (5) the rig counted a failed `serve/list` as 0 serves; (6) a mistyped conf
+    path made Docker create a directory; (7) the counts above and in S6; (8) the rig header
+    overstated how closely it copies the add-on; (11) S6 now says who passes ingress more
+    carefully. (4) No new test ran in CI: Gearoid chose option A, the rig runs as a CI job.
+    Rejected: (9) dead code left in the patched tree, kept on purpose to keep the patch small and
+    absent from the bundle. Left as nits: (10) the fixed 1 s wait in the Playwright spec.
+- [x] **`delete` back as a job command** (Gearoid's ask, 2026-11-09: bring back the README prune
+  example; no destination for `delete`; disable fields and check the YAML). Partly reverses the
+  2026-11-05 `copy|sync|move` decision; `ls` stays out. Route: working directly, no independent
+  review. Size S. Committed and released as `3.5.0-poc.24` on Gearoid's go (2026-11-09).
+  - **Limit:** fields cannot be disabled. The Supervisor options schema has per-field types only
+    (`str?`, `list(...)`, `match(...)`), nothing conditional, so the form cannot grey out
+    `destination` when `delete` is chosen. Instead the scheduler checks each job at start-up and
+    stops with `job '<name>' <problem>` (`CheckJob`, `main.go`), and the helper text says what
+    `delete` needs.
+  - **Rules (assumptions, Gearoid to confirm):** `copy`, `sync` and `move` need a destination;
+    `delete` has no `destination`/`destinations`; each `delete` source is a remote (no local
+    `/backup` pruning, HA's retention does that); `delete` needs a filter (`include`, `exclude`, or
+    a `min-age`, `max-age`, `min-size`, `max-size` or filter flag in `flags` or `extra_flags`) so it
+    never deletes every file.
+  - **Defect fixed on the way:** `CreateJob` with several sources ran `destination+source`, so with
+    no destination each source became its own destination (`rclone delete a: a:`, the same
+    `needs 1 arguments maximum`). Pairing moved to `JobRuns`, same order for the existing cases.
+  - **Change:** schema `list(copy|sync|move|delete)`; `jobs_test.go` (new, `TestCheckJob` 15
+    cases, `TestJobRuns` 6); `FuzzCommandSchema` model accepts `delete`; `translations/en.yaml`,
+    `DOCS.md` (table row, the start-up checks, prune example), README prune job restored.
+  - **Verified:** new tests red (build) before `JobRuns` existed, then green; `go vet` clean;
+    `go test ./...` passes, including `TestDocumentedCommands` against the restored README; 10 s
+    fuzz of `FuzzCommandSchema` and `FuzzBuildArgs` clean; both YAML files parse; rclone v1.76.0
+    `rclone delete hassbackup: --verbose --min-age=14d` on a scratch alias remote deleted a file
+    dated 2026-01-01 and kept a new one. **Not verified:** the add-on linter (CI), the dropdown
+    and a real `delete` job on HA.
+- [x] **First run in the Web UI** (Gearoid, 2026-11-09: remotes are fixed, so the docs should say the
+  Web UI works rather than "create `rclone.conf` on a computer first"). Route: working directly, no
+  independent review. Size S. Committed with the no-default-job change below, bump to
+  `3.5.0-poc.25` (2026-11-10, on Gearoid's go).
+  - **Corrects the 2026-11-02 note** ("an empty file plus a local-only job is not enough to
+    start"). Checked on the released `3.5.0-poc.24` aarch64 image under Docker, no Supervisor, no
+    `rclone.conf`: no jobs, starts and stays up; a local-only job, starts and runs; the default
+    `google:` job, stops with `remote 'google:' does not exist` (the scheduler's halt takes the
+    app down, `services.d/scheduler/finish`); rc `config/create` with no file creates
+    `/homeassistant/rclone.conf`; a restart with a job on that remote starts and runs it.
+  - **Change:** `DOCS.md` "Before you start" is now: remove the default job, start, add the remote
+    in the Web UI (browser-login providers still paste a token from `rclone authorize`), add the
+    job, restart; the computer route is a short "If you already have an rclone.conf" part.
+    `config_path` no longer says the file must exist first; README intro to match.
+  - **Not verified:** on HA itself (removing the only job in the options form, an empty `jobs:`
+    list through Supervisor validation); the Settings tab with no file at start (its row still says
+    the file must exist before the app starts).
+  - **No default job** (Gearoid, 2026-11-10, after 6 upstream issues showed the default `google:`
+    job halting fresh installs: jcwillox #28, #32, #37, #49, #134, #135; #49 and #134 open). The
+    job dates from the 2020-12-09 initial commit, when every schema field was required (inferred,
+    no commit says why). `config.yaml` default is now `jobs: []`; the docs' step "remove the
+    default job" is gone, and a note covers the one quiet break below.
+    - **Checked in Supervisor source** (`supervisor/apps/options.py` on `main`, fetched
+      2026-11-10): an empty list passes `_nested_validate_list` (loops over no items); the `jobs`
+      key must stay, as a missing list-of-dict key fails `_check_missing_options`. `apps/app.py`
+      merges options with lists on `override`: saved jobs are kept, but an install that never
+      saved its options loses the old default job on update, with no error.
+    - **Verified:** `go test -count=1 ./...` passes; the YAML parses to `jobs: []`; the poc.24
+      image started and stayed up with `jobs: []` (the Docker run above). **Not verified:** the
+      add-on linter (CI) and a fresh install on HA.
+- [x] **Settings save fails** (fix committed with bump to `3.5.0-poc.26`, 2026-11-10; Gearoid's report on poc.25, 2026-11-10: Save Changes on the config
+  contents shows `Could not save settings: Failed to construct 'URL': Invalid base URL`; no
+  `/homeassistant/rclone.conf` yet). RCA by `nw-troubleshooter` (UNREVIEWED: its paired reviewer
+  did not run), key claims re-checked against source.
+  - **Cause (upstream, not our patches):** `src/rclone/client.ts:169` in rclone-web 1.2.0 has
+    `new URL(auth.url.replace(/^\//, ''), '/operations/uploadfile')`: the path is passed as the
+    *base*, which is never a valid absolute URL, so it throws before any request. Re-checked: the
+    line is in the pristine 1.2.0 tarball and on upstream `main` (2026-11-10); none of our three
+    patches touch it; Node throws `Invalid URL` for any first argument. Latest release 1.2.1 does
+    not fix it, so a bump will not help.
+  - **Missing rclone.conf: rejected as the cause.** The throw comes before any network call; the RCA
+    reproduced it with the file present, at `/` and under a sub-path, and on the unpatched upstream
+    build. With the fix, the save creates an absent file.
+  - **Proposed fix:** `new URL(`${auth.url}/operations/uploadfile`, window.location.href)`, as a
+    new 4th patch `settings-save.patch` (Dockerfile `COPY` and one `patch` line), with a Playwright
+    regression test `e2e/settings-save.spec.ts` (red without the fix, green with it, per the RCA).
+    Scratch tree: `$CLAUDE_JOB_DIR/tmp/rca-settings/`.
+  - **Decision (Gearoid, 2026-11-10):** a new 4th patch, kept apart so it can go upstream as is and
+    be dropped once upstream fixes it.
+  - **Change:** `rclone_backup/rclone-web/settings-save.patch` (the one-line fix and
+    `e2e/settings-save.spec.ts`); Dockerfile copies it and applies it after `no-serves.patch`.
+  - **Verified:** all four patches apply at `--fuzz=0` to a fresh 1.2.0 tarball; `biome check .`
+    clean (94 files); `tsc -b && vite build` pass; the new spec is red without the fix
+    (`getByText('Settings saved.')` not found) and green with it, from an absent config file; full
+    suite 32/32 on local rclone 1.76.0 with a scratch `RCLONE_CONFIG`; the Dockerfile `webui`
+    stage builds (aarch64) and its bundle has the fixed `new URL(...)`.
+  - **Verified on HA (Gearoid, 2026-11-10, poc.26):** Settings saves the config contents and
+    creates `/homeassistant/rclone.conf` when it does not exist; adding a remote in Remotes also
+    works. A first try right after the release failed; the retest passed. Not investigated: most
+    likely the app was still on poc.25 or the browser had the old UI cached (the poc.26 image's
+    bundle has the fix, and nginx neither blocks `operations/uploadfile` nor limits body size).
+    `DOCS.md` Settings row no longer says the file must exist before the app starts.
+  - [ ] Optional, Gearoid's call: report the bug and fix upstream to `rclone/rclone-web`.
+  - **Workaround:** add the first remote in **Remotes** → **Add New Remote** (rc `config/create`
+    creates the file).
+
+## Findings
+
+- **The stock rclone-web build cannot run under ingress.** Verified in the 1.2.0 `dist.zip`:
+  `index.html` loads `/assets/index-*.js` and `/icon.svg` by absolute path; the app uses
+  `createBrowserRouter` with no `basename`; `src/rclone/client.ts` redirects to `/login`; the rc URL
+  defaults to `''` in `src/lib/store.ts`, so the first visit shows a login form with no URL.
+  The old rclone-webui-react build used relative paths (`./static/...`), which is why it worked.
+- **Fix: build from source at a pinned tag with a small patch.** Vite `base: './'`; router basename,
+  icon paths and login redirects derived at runtime from the bundle's own URL (`src/lib/base.ts`);
+  the rc URL defaults to the serving origin and path. Biome clean, `tsc -b && vite build` clean.
+- **The node stage uses `--platform=$BUILDPLATFORM`.** The output is plain JS, and official `node`
+  images have no armhf or i386 builds, so building per target arch would fail.
+- **`rc/noopauth` works under `--rc-no-auth`** on rclone 1.74.3 (`{}`, HTTP 200).
+- **Ingress test** (nginx at `/api/hassio_ingress/TESTTOKEN/`, prefix stripped, add-on's own run
+  command, headless Chromium): lands on the dashboard with no login, rc URL stored as the ingress
+  base, icons load, nav links are prefixed, `/remotes` lists the configured remote, reload at the
+  panel root works, no console errors, no HTTP errors, no request escapes the prefix.
+  **Negative control:** the stock 1.2.0 zip behind the same rig renders a blank page and fails.
+- **Known limit, unchanged in practice:** `rclone rcd --rc-files` has no SPA fallback, so a browser
+  reload on a deep link (for example `.../remotes`) returns 404. HA always opens the panel at its
+  root, so this does not bite through the HA UI.
+- **Done 2026-11-02:** `example.png` replaced with Gearoid's rclone-web Dashboard screenshot.
+- `rclone gui` (rclone 1.74) embeds rclone-web 1.1.8 but listens on two random localhost ports, so
+  it does not fit single-port ingress; `--rc-web-gui` still fetches the archived rclone-webui-react.
+
+## Review (2026-10-29, `nw-platform-architect-reviewer`, conditionally approved)
+
+Each finding was re-checked against source before acting on it.
+
+1. **Fixed.** The persisted rc URL would go stale if the ingress token changed (add-on reinstall):
+   `partialize` in `src/lib/store.ts` stored the absolute same-origin URL, which then overrode the
+   default. The patch now leaves `url` out of storage when it equals the same-origin default.
+2. **Fixed.** A Renovate minor bump could automerge a GUI broken under ingress (`:automergeMinor`,
+   CI only builds). The Dockerfile now applies the patch with `--fuzz=0` and fails the build if
+   `dist/index.html` loads anything by absolute path; `renovate.json` gives rclone-web its own
+   group with automerge off.
+3. Rejected in part: "busybox `patch` is already in node:alpine" is false (`command -v patch`
+   printed MISSING in `node:24-alpine`), so `apk add patch` stays. No checksum on the tag tarball
+   and the floating `node:24-alpine` tag match the existing Dockerfile's pattern; left as is.
+4. **Fixed.** Renovate datasource is now `github-releases`, matching the other dependencies.
+5. to 6. No change: index.html caching is the same exposure as before; `client.ts:170` is dead
+   upstream code.
+7. Done 2026-11-02: `example.png` now shows rclone-web.
+
+Not validated: `renovate.json` against Renovate's schema (running the validator via `npx` was
+blocked by the session's safety classifier). It parses as JSON.
+Reviewer's caveat, accepted: the nginx rig does not model HA auth, the frontend iframe, HTTPS or
+Nabu Casa. One smoke test on a real HA instance before release.
+
+## Blockers
+
+- 2026-10-29: the Mac's disk reached 99% (133 MiB free) during the armhf cross-build, and the Docker
+  daemon stopped answering (`500` on `_ping`). Local cross-arch builds wait for free disk space.
+- 2026-10-29 23:50: disk recovered to 4 to 5 GB free, but Docker Desktop did not come back after a
+  relaunch (no process, socket refused for 5 minutes). Repairing it is Gearoid's call.
